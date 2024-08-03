@@ -1,0 +1,25 @@
+[package]
+name = "BevyGame"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy = { version = "0.14.0", features = ["dynamic_linking"] }
+bevy_framepace = "0.17.1"
+
+rand_core = "0.6"
+bevy_rand = "0.7"
+bevy_prng = { version = "0.7", features = ["rand_chacha", "wyrand"] }
+
+[profile.release]
+lto = true
+opt-level = 3
+codegen-units = 1
+incremental = false
+debug = false
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
