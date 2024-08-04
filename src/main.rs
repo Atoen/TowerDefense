@@ -1,20 +1,21 @@
-use std::time::Duration;
-
+use bevy::input::common_conditions::input_just_pressed;
 use bevy::prelude::*;
 use bevy::render::RenderPlugin;
 use bevy::render::settings::{Backends, RenderCreation, WgpuSettings};
-use bevy::scene::ron::de;
 use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};
 use bevy::window::PrimaryWindow;
-use bevy_prng::WyRand;
+use bevy_prng::{ChaCha8Rng, WyRand};
 use bevy_rand::plugin::EntropyPlugin;
-use components::{AttackDelay, ProjectileTurret, Target, TargetingRadius, Turret};
-use systems::{movable_system, move_target, rotate_turrets, projectile_turret_attack_system};
+use components::turrets::Target;
+use systems::turrets::*;
 
 const ARROW_SPRITE: &str = "arrow.png";
 const ARROW_SIZE: (f32, f32) = (50., 50.);
 
 const BULLET_SPRITE: &str = "bullet.png";
+const LASER_BEAM_SPRITE: &str = "laser_beam.png";
+const RAIL_GUN_SPRITE: &str = "rail_gun.png";
+const RAIL_GUN_BEAM_SPRITE: &str = "rail_gun_beam.png";
 
 mod components;
 mod systems;
@@ -28,7 +29,10 @@ pub struct WinSize {
 #[derive(Resource)]
 struct GameTextures {
     arrow: Handle<Image>,
-    bullet: Handle<Image>
+    rail_gun: Handle<Image>,
+    bullet: Handle<Image>,
+    laser_beam: Handle<Image>,
+    rail_gun_beam: Handle<Image>
 }
 
 fn main() {
@@ -51,13 +55,19 @@ fn main() {
     });
 
     App::new()
-        .add_plugins((default_plugins, EntropyPlugin::<WyRand>::default()))
+        .add_plugins((default_plugins, EntropyPlugin::<ChaCha8Rng>::default()))
         .add_systems(Startup, setup)
         .add_systems(Update, (
             move_target,
-            movable_system,
-            rotate_turrets,
-            projectile_turret_attack_system))
+            projectile_system,
+            targeting_turret_system,
+            projectile_turret_attack_system,
+            flag_idle_turrets,
+            idle_rotation_system,
+            spawn_projectile_turret.run_if(
+                input_just_pressed(MouseButton::Left)
+            )
+        ))
         .run();
 }
 
@@ -78,30 +88,24 @@ fn setup(
     
     let game_textures = GameTextures {
         arrow: asset_server.load(ARROW_SPRITE),
-        bullet: asset_server.load(BULLET_SPRITE)
+        bullet: asset_server.load(BULLET_SPRITE),
+        laser_beam: asset_server.load(LASER_BEAM_SPRITE),
+        rail_gun: asset_server.load(RAIL_GUN_SPRITE),
+        rail_gun_beam: asset_server.load(RAIL_GUN_BEAM_SPRITE),
     };
     
     commands.insert_resource(game_textures);
     
     commands.spawn(Camera2dBundle::default());
 
-    commands.spawn((Target, MaterialMesh2dBundle {
-        mesh: Mesh2dHandle(meshes.add(Circle {radius: 20.0})),
-        material: materials.add(Color::WHITE),
-        ..default()
-    }));
-
-    commands.spawn((Turret { attacking: true },
-         SpriteBundle {
-        texture: asset_server.load(ARROW_SPRITE),
-        transform: Transform {
-            translation: Vec3 { x: 20., y: 143., z: 0. },
+    commands.spawn((
+        Target {
+            pos: Vec3::ZERO
+        }, 
+        MaterialMesh2dBundle {
+            mesh: Mesh2dHandle(meshes.add(Circle {radius: 20.0})),
+            material: materials.add(Color::WHITE),
             ..default()
-        },
-        ..default()
-    }))
-    .insert(TargetingRadius(400.0))
-    .insert(AttackDelay { timer: Timer::new(Duration::from_millis(50), TimerMode::Repeating) })
-    .insert(ProjectileTurret { projectile_spawn_offset: Vec3 { x: 0., y: ARROW_SIZE.1 / 2., z: 0. }});
+        }
+    ));
 }
-
