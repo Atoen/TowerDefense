@@ -17,8 +17,24 @@ const LASER_BEAM_SPRITE: &str = "laser_beam.png";
 const RAIL_GUN_SPRITE: &str = "rail_gun.png";
 const RAIL_GUN_BEAM_SPRITE: &str = "rail_gun_beam.png";
 
+const EXPLOSION_SHEET: &str = "explosion_sheet.png";
+const EXPLOSION_LEN: usize = 16;
+
 mod components;
 mod systems;
+
+pub enum TurretType {
+    PulseCannon,    // ✔
+    SwarmTurret,    // ✔
+    PlasmaRay,      // ❌
+    RailGun,        // ❌
+    CryoGenerator,  // ✔
+    Tesla,          // ✔
+    SeekerLauncher, // ✔
+    AcidSprayer,    // ✔ 
+    FireThrower,    // ✔
+    Sentinel        // ❌
+}
 
 #[derive(Resource)]
 pub struct WinSize {
@@ -27,12 +43,14 @@ pub struct WinSize {
 }
 
 #[derive(Resource)]
-struct GameTextures {
+pub struct GameTextures {
     arrow: Handle<Image>,
     rail_gun: Handle<Image>,
     bullet: Handle<Image>,
     laser_beam: Handle<Image>,
-    rail_gun_beam: Handle<Image>
+    rail_gun_beam: Handle<Image>,
+    explosion_layout: Handle<TextureAtlasLayout>,
+	explosion_texture: Handle<Image>,
 }
 
 fn main() {
@@ -60,12 +78,20 @@ fn main() {
         .add_systems(Update, (
             move_target,
             projectile_system,
-            targeting_turret_system,
+            decaying_projectile_system,
+            homing_projectile_system,
+            explosion_spawn_system,
+            aoe_animation_system,
+            aoe_turret_attack_system,
+            turret_targeting_system,
             projectile_turret_attack_system,
             flag_idle_turrets,
             idle_rotation_system,
             spawn_projectile_turret.run_if(
                 input_just_pressed(MouseButton::Left)
+            ),
+            spawn_aoe_turret.run_if(
+                input_just_pressed(MouseButton::Right)
             )
         ))
         .run();
@@ -76,7 +102,8 @@ fn setup(
     asset_server: Res<AssetServer>,
     query: Query<&Window, With<PrimaryWindow>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    mut meshes: ResMut<Assets<Mesh>>
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>
 ) {
     
     let Ok(primary) = query.get_single() else {
@@ -85,6 +112,10 @@ fn setup(
     
     let win_size = WinSize { width: primary.width(), height: primary.height() };
     commands.insert_resource(win_size);
+
+    let texture_handle = asset_server.load(EXPLOSION_SHEET);
+	let texture_atlas = TextureAtlasLayout::from_grid(UVec2::new(64, 64), 4, 4, None, None);
+	let explosion_layout = texture_atlases.add(texture_atlas);
     
     let game_textures = GameTextures {
         arrow: asset_server.load(ARROW_SPRITE),
@@ -92,6 +123,8 @@ fn setup(
         laser_beam: asset_server.load(LASER_BEAM_SPRITE),
         rail_gun: asset_server.load(RAIL_GUN_SPRITE),
         rail_gun_beam: asset_server.load(RAIL_GUN_BEAM_SPRITE),
+        explosion_layout,
+        explosion_texture: texture_handle
     };
     
     commands.insert_resource(game_textures);
