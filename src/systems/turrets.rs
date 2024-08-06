@@ -1,11 +1,10 @@
-use std::time::Duration;
 
-use bevy::{ecs::{entity, query}, math::Vec3, prelude::*, sprite::{MaterialMesh2dBundle, Mesh2d, Mesh2dHandle}, transform::commands, window::{PrimaryWindow, Window}};
+use bevy::{math::Vec3, prelude::*, sprite::{MaterialMesh2dBundle, Mesh2dHandle}, window::{PrimaryWindow, Window}};
 use bevy_prng::ChaCha8Rng;
 use bevy_rand::prelude::GlobalEntropy;
 use rand_core::RngCore;
 
-use crate::{components::turrets::{self, *}, GameTextures, WinSize, ARROW_SIZE, EXPLOSION_LEN};
+use crate::{components::turrets::*, turret_bundles::PulseBlasterBundle, GameTextures, WinSize};
 
 pub fn move_target(
     mut target_query: Query<(&mut Transform, &mut Target)>,
@@ -23,7 +22,7 @@ pub fn move_target(
     }
 }
 
-fn window_to_world_coords(cursor_pos: Vec2, window_size: Vec2) -> Vec3 {
+pub fn window_to_world_coords(cursor_pos: Vec2, window_size: Vec2) -> Vec3 {
     Vec3 { 
         x: cursor_pos.x - window_size.x / 2.0,
         y: window_size.y / 2.0 - cursor_pos.y,
@@ -412,21 +411,21 @@ pub fn projectile_turret_attack_system(
                 auto_despawn: true,
                 radius: 1.
             },
-            Decaying {
-                decay_timer: Timer::from_seconds(1., TimerMode::Once),
-                decay_type: DecayType::Despawn
-            },
-            AoEAnimation {
-                timer: Timer::from_seconds(1., TimerMode::Once),
-                radius_animation: Some(RadiusAnimation::FromStartToEnd { start_radius: 2., end_radius: 20. }),
-                color_animation: Some(ColorAnimation {
-                    start_color: Color::srgb(1., 0.5, 0.),
-                    end_color: Color::srgb(1., 0., 0.1),
-                    alpha_factor: None,
-                    animate_alpha: true
-                }),
-                despawn_on_end: false
-            },
+            // Decaying {
+            //     decay_timer: Timer::from_seconds(1., TimerMode::Once),
+            //     decay_type: DecayType::Despawn
+            // },
+            // AoEAnimation {
+            //     timer: Timer::from_seconds(1., TimerMode::Once),
+            //     radius_animation: Some(RadiusAnimation::FromStartToEnd { start_radius: 2., end_radius: 20. }),
+            //     color_animation: Some(ColorAnimation {
+            //         start_color: Color::srgb(1., 0.5, 0.),
+            //         end_color: Color::srgb(1., 0., 0.1),
+            //         alpha_factor: None,
+            //         animate_alpha: true
+            //     }),
+            //     despawn_on_end: false
+            // },
             // Homing {
             //     homing_angle: std::f32::consts::PI,
             //     homing_distance: 500.,
@@ -438,25 +437,25 @@ pub fn projectile_turret_attack_system(
             // },
             InstantDamage(1.),
             LinearVelocity(200.),
-            MaterialMesh2dBundle {
-                mesh: Mesh2dHandle(meshes.add(Circle { radius: 2. })),
-                material: materials.add(Color::srgb(0.64, 0.12, 0.36)),
-                transform: Transform {
-                    translation: spawn_translation.with_z(99.),
-                    rotation: direction,
-                    ..default()
-                },
-                ..default()
-            }
-            // SpriteBundle {
-            //     texture: game_textures.bullet.clone(),
+            // MaterialMesh2dBundle {
+            //     mesh: Mesh2dHandle(meshes.add(Circle { radius: 2. })),
+            //     material: materials.add(Color::srgb(0.64, 0.12, 0.36)),
             //     transform: Transform {
-            //         translation: spawn_translation,
+            //         translation: spawn_translation.with_z(99.),
             //         rotation: direction,
             //         ..default()
             //     },
             //     ..default()
             // }
+            SpriteBundle {
+                texture: game_textures.bullet.clone(),
+                transform: Transform {
+                    translation: spawn_translation,
+                    rotation: direction,
+                    ..default()
+                },
+                ..default()
+            }
         ));
     }
 }
@@ -534,33 +533,17 @@ pub fn spawn_projectile_turret(
 
     let pos = window_to_world_coords(cursor_pos, window.size());
 
-    commands.spawn((
-        Turret,
-        ProjectileTurret,
-        AttackDispersion(std::f32::consts::PI / 20.),
-        TargetingTurret {
-            targeting_radius: Some(200.),
-            rotation: 0.,
-            has_target: false
-        },
-        SpawnOffset(Vec3 { x: 0., y: ARROW_SIZE.1 / 2., z: 0. }),
-        RotationSpeed(std::f32::consts::FRAC_PI_3),
-        AttackDelay(Timer::from_seconds(0.05, TimerMode::Repeating)),
-        IdleRotation {
-            idle_timer: Timer::from_seconds(3., TimerMode::Once),
-            rotation_timer: Timer::from_seconds(2., TimerMode::Repeating),
-            target_angle: 0.,
-            is_idle: false
-        },
-        SpriteBundle {
+    commands.spawn(PulseBlasterBundle {
+        sprite: SpriteBundle {
             texture: game_textures.arrow.clone(),
             transform: Transform {
                 translation: pos,
                 ..default()
             },
             ..default()
-        }
-    ));
+        },
+        ..default()
+    });
 }
 
 pub fn spawn_aoe_turret(
@@ -576,7 +559,7 @@ pub fn spawn_aoe_turret(
     let pos = window_to_world_coords(cursor_pos, window.size());
 
     commands.spawn((
-        Turret,
+        Turret(crate::TurretType::CryoGenerator),
         AoETurret {
             range: 100.,
             always_attacking: false

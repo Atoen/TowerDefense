@@ -1,10 +1,12 @@
 use std::time::Duration;
 
-use bevy::{color::Color, math::{Vec2, Vec3}, prelude::{Component, Entity}, time::Timer};
+use bevy::{color::Color, math::{Vec2, Vec3}, prelude::{Component, Entity}, time::{Timer, TimerMode}};
 use bevy_rand::prelude::EntropyComponent;
 
+use crate::TurretType;
+
 #[derive(Component)]
-pub struct Turret;
+pub struct Turret(pub TurretType);
 
 #[derive(Component)]
 pub struct TargetingTurret {
@@ -36,6 +38,16 @@ pub struct IdleRotation {
     pub target_angle: f32
 }
 
+impl Default for IdleRotation{
+    fn default() -> Self {
+        Self {
+            idle_timer: Timer::from_seconds(3., TimerMode::Once),
+            rotation_timer: Timer::from_seconds(2., TimerMode::Repeating),
+            target_angle: 0.,
+            is_idle: false
+        }
+    }
+}
 
 
 #[derive(Component)]
@@ -144,15 +156,3 @@ pub struct Target {
     pub pos: Vec3
 }
 
-pub enum TurretType {
-    Projectile(ProjectileEnum),
-    Beam,
-    AreaOfEffect
-}
-
-pub enum ProjectileEnum {
-    Regular { damage: f32, speed: f32 },
-    Decaying { damage: f32, speed: f32, life_time: Duration },
-    Explosive { damage: f32, speed: f32, explosion_range: f32, explosion_damage: f32 },
-    Homing { damage: f32, speed: f32, homing_angle: f32 }
-}
