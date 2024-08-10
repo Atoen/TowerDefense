@@ -1,14 +1,10 @@
-use ui::button::Button;
-
 use crate::*;
 
 #[derive(Component, Debug, Default, Clone, PartialEq)]
 pub struct MainMenuRoute;
 
-
 fn build_route(
     mut commands: Commands,
-    assets: Res<AssetServer>,
     query: Query<Entity, Added<MainMenuRoute>>,
     mut materials: ResMut<Assets<ColorMaterial>>
 ) {
@@ -32,7 +28,7 @@ fn build_route(
                     root.add("Background"),
                     UiLayout::solid().size((1920.0, 1080.0)).scaling(Scaling::Fill).pack::<Base>(),
                     UiMaterial2dBundle {
-                        material: materials.add(Color::srgba(0.5, 0.2, 0.2, 0.5)),
+                        material: materials.add(Color::GRAY_900),
                         ..default()
                     }
                 ));
@@ -40,23 +36,13 @@ fn build_route(
                 let board = root.add("Solid");
                 ui.spawn((
                     board.clone(),
-                    UiLayout::solid().size((881.0, 1600.0)).align_x(-0.74).pack::<Base>(), // Just different layout type that preserves aspect ratio
-                ));
-
-                let board = board.add("Board");
-                ui.spawn((
-                    board.clone(),
-                    UiLayout::window().x(Rl(50.0)).anchor(Anchor::TopCenter).size(Rl(105.0)).pack::<Base>(),
-                    UiMaterial2dBundle {
-                        material: materials.add(Color::BEVYPUNK_RED_DIM),
-                        ..default()
-                    }
+                    UiLayout::solid().size((1.0, 2.5)).align_x(1.0).pack::<Base>(),
                 ));
 
                 let list = board.add("List");
                 ui.spawn((
                     list.clone(),
-                    UiLayout::window().pos(Rl((22.0, 33.0))).size(Rl((55.0, 34.0))).pack::<Base>()
+                    UiLayout::window().pos(Rl(15.0)).size(Rl((80.0, 34.0))).pack::<Base>()
                 ));
 
                 let gap = 3.0;
@@ -68,13 +54,18 @@ fn build_route(
                         list.add(button_type.str()),
                         button_type.clone(),
                         UiLayout::window().y(Rl(offset)).size(Rl((100.0, size))).pack::<Base>(),
-                        MainButton {
+                        MenuButton {
                             text: button_type.str()
                         }
                     ));
 
-                    if button_type == MainMenuButton::Continue {
-                        button.insert(OnUiClickDespawn::new(route_entity));
+                    if button_type == MainMenuButton::NewGame {
+                        button.insert((
+                            OnUiClickDespawn::new(route_entity),
+                            OnUiClickCommands::new(|commands| {
+                                commands.spawn(GameRoute);
+                            })
+                        ));
                     }
 
                     offset += gap + size;
@@ -104,7 +95,7 @@ impl MainMenuButton {
 
 fn main_menu_button_clicked_system(
     mut events: EventReader<UiClickEvent>,
-    query: Query<&MainMenuButton, With<Button>>,
+    query: Query<&MainMenuButton, With<MenuButton>>,
     mut exit: EventWriter<AppExit>
 ) {
     for event in events.read() {
@@ -128,6 +119,7 @@ impl Plugin for MainMenuRoutePlugin {
             .add_systems(PreUpdate, build_route.before(UiSystems::Compute))
             .add_systems(Update, main_menu_button_clicked_system
                 .distributive_run_if(on_event::<UiClickEvent>())
-                .distributive_run_if(input_just_pressed(MouseButton::Left)));
+                .distributive_run_if(input_just_pressed(MouseButton::Left))
+            );
     }
 }

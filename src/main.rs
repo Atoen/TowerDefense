@@ -61,6 +61,13 @@ pub enum TurretType {
 
 pub struct SelectedWeapon(pub Option<TurretType>);
 
+#[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash, Display)]
+pub enum PausedState {
+    #[default]
+    Running,
+    Paused
+}
+
 #[derive(Resource)]
 pub struct WinSize {
     pub width: f32,
@@ -96,13 +103,15 @@ fn main() {
     });
 
     App::new()
-        .add_plugins((default_plugins, EntropyPlugin::<ChaCha8Rng>::default(), UiPlugin))
-        .add_plugins(UiDebugPlugin::<MainUi>::new())
-        .add_plugins(bevy_framepace::FramepacePlugin)
 
+        .add_plugins((default_plugins, EntropyPlugin::<ChaCha8Rng>::default(), UiPlugin))
+        // .add_plugins(UiDebugPlugin::<MainUi>::new())
+        .add_plugins(bevy_framepace::FramepacePlugin)
+        
         .add_plugins(ComponentPlugin)
         .add_plugins(RoutePlugin)
         .add_systems(Startup, setup)
+        .init_state::<PausedState>()
         // .add_systems(Update, (
         //     // move_target,
         //     projectile_system,
@@ -152,7 +161,7 @@ fn setup(
     };
     
     commands.insert_resource(game_textures);
-    commands.insert_resource(CurrentPage(WeaponPage::StandardWeapons));  
+    commands.insert_resource(GameCash(10000));
     commands.spawn((
         MainUi,
         BloomSettings::OLD_SCHOOL,
@@ -182,7 +191,7 @@ fn setup(
             //         texture: asset_server.load(CURSOR_SHEET),
             //         transform: Transform { scale: Vec3::new(0.45, 0.45, 1.0), ..default() },
             //         sprite: Sprite {
-            //             color: Color::BEVYPUNK_YELLOW.with_alpha(2.0),
+            //             color: Color::YELLOW.with_alpha(2.0),
             //             anchor: Anchor::TopLeft,
             //             ..default()
             //         },
@@ -198,226 +207,11 @@ fn setup(
     //         pos: Vec3::ZERO
     //     }, 
     //     MaterialMesh2dBundle {
-    //         mesh: Mesh2dHandle(meshes.add(Circle {radius: 20.0})),
+            // mesh: Mesh2dHandle(meshes.add(Circle {radius: 20.0})),
     //         material: materials.add(Color::WHITE.with_alpha(0.0)),
     //         ..default()
     //     }
     // ));
 
     commands.spawn(MainMenuRoute);
-
-    // set_ui(commands, asset_server, materials, meshes);
 }
-
-#[derive(Resource)]
-pub struct CurrentPage(pub WeaponPage);
-
-#[derive(Display, EnumIter, EnumCount, Clone, Copy, )]
-pub enum WeaponPage {
-    StandardWeapons,
-    SpecialWeapons,
-    Building
-}
-
-impl WeaponPage {
-    fn from_u8(val: u8) -> Option<Self> {
-        match val {
-            0 => Some(WeaponPage::StandardWeapons),
-            1 => Some(WeaponPage::SpecialWeapons),
-            2 => Some(WeaponPage::Building),
-            _ => None,
-        }
-    }
-}
-
-#[derive(Display)]
-pub enum PageNavigation {
-    Next,
-    Previous
-}
-
-// fn set_ui(
-//     mut commands: Commands,
-//     asset_server: Res<AssetServer>,
-//     mut materials: ResMut<Assets<ColorMaterial>>,
-//     mut meshes: ResMut<Assets<Mesh>>
-// ) {
-//     commands.spawn((
-//         MovableByCamera,
-//         UiTreeBundle::<MainUi>::from(UiTree::new2d("Game")),
-//     )).with_children(|ui| {
-
-//         let root = UiLink::<MainUi>::path("Root");
-//         ui.spawn((
-//             root.clone(),
-//             GameArena,
-//             UiLayout::window_full().pack::<Base>(),
-//             UiZoneBundle::default(),
-//             UiClickEmitter::SELF
-//         ));
-
-//         let bottom_row = root.add("Bottom Row");
-//         ui.spawn((
-//             bottom_row.clone(),
-//             UiLayout::boundary()
-//                 .pos1((0., Vh(90.)))
-//                 .pos2(Rl(100.))
-//                 .pack::<Base>(),
-//             UiMaterial2dBundle {
-//                 material: materials.add(Color::BLACK.with_alpha(0.5)),
-//                 ..default()
-//             }
-//         ));
-
-//         let turret_selector = bottom_row.add("Turret Selector");
-//         let turret_selector_entity = ui.spawn((
-//             turret_selector.clone(),
-//             UiLayout::boundary()
-//                 .pos1((Rl(0.)))
-//                 .pos2((Rw(100.), Rl(100.)))
-//                 .pack::<Base>()
-//         )).id();
-
-//         ui.spawn((
-//             bottom_row.add("Previous Page Button"),
-
-//             UiLayout::window()
-//                 .pos((38., Rh(50.)))
-//                 .anchor(Anchor::Center)
-//                 .size((38., 53.))
-//                 .pack::<Base>(),
-//             Button {
-//                 text: None,
-//                 image: Some(asset_server.load(AssetPath::CHEVRON_LEFT)),
-//                 hover_enlarge: true
-//             },
-//             PageNavigationButton(PageNavigation::Previous),
-//             ActionButton
-//         ));
-
-//         ui.spawn((
-//             bottom_row.add("Next Page Button"),
-
-//             UiLayout::window()
-//                 .pos((Rw(100.) - Ab(38.), Rh(50.)))
-//                 .anchor(Anchor::Center)
-//                 .size((38., 53.))
-//                 .pack::<Base>(),
-//             Button {
-//                 text: None,
-//                 image: Some(asset_server.load(AssetPath::CHEVRON_RIGHT)),
-//                 hover_enlarge: true
-//             },
-//             PageNavigationButton(PageNavigation::Next),
-//             ActionButton,
-//             OnUiClickDespawn::SELF
-//         ));
-
-//         let button_size = (Rh(50.), Rh(50.));
-//         for (i, turret) in TurretType::iter().enumerate() {
-//             ui.spawn((
-//                 turret_selector.add(format!("{i}")),
-//                 UiLayout::window()
-//                     .size(button_size)
-//                     .pos(get_pos(i, TurretType::COUNT, button_size.into()))
-//                     .pack::<Base>(),
-
-//                 Button {
-//                     text: Some(turret.to_string()),
-//                     image: Some(asset_server.load(
-//                         match turret {
-//                             TurretType::PulseBlaster => AssetPath::PULSE_BLASTER,
-//                             TurretType::PlasmaRay => AssetPath::PLASMA_RAY,
-//                             TurretType::RailGun => AssetPath::RAIL_GUN,
-//                             TurretType::AcidSprayer => AssetPath::ACID_SPRAYER,
-//                             _ => AssetPath::PULSE_BLASTER,
-//                         }
-//                     )),
-//                     hover_enlarge: true
-//                 },
-//                 TurretPickerButton(turret),
-//                 ActionButton,
-//             ));
-//         }
-//     });
-// }
-
-// #[derive(Component)]
-// pub struct DisplayField;
-
-// #[derive(Component)]
-// pub struct ActionButton;
-
-// #[derive(Component)]
-// pub struct  GameArena;
-
-// fn get_pos(elememnt_num: usize, total_elements: usize, element_size: UiValue<Vec2>) -> UiValue<Vec2> {
-
-//     let width = element_size.get_x();
-//     let height = element_size.get_y() + Em(1.);
-
-//     let fragments = total_elements + 1;
-//     let fragment_step = Rw(100.) * (1. / fragments as f32);
-
-//     let x = -width * 0.5 + fragment_step * (elememnt_num + 1) as f32;
-//     let y = -height * 0.5 + Rl(50.);
-
-//     (x, y).into()
-// }
-
-// fn read_page_button_events(
-//     mut events: EventReader<UiClickEvent>,
-//     buttons: Query<&PageNavigationButton, With<ActionButton>>,
-//     mut page: ResMut<CurrentPage>
-// ) {
-//     for event in events.read() {
-//         if let Ok(button) = buttons.get(event.target) {
-//             let page_index = page.0 as u8;
-//             let pages_count = WeaponPage::COUNT as u8;
-
-//             let next_index = match button.0 {
-//                 PageNavigation::Next => (page_index + 1) % pages_count,
-//                 PageNavigation::Previous => (page_index + pages_count - 1) % pages_count,
-//             };
-
-//             if let Some(next_page) = WeaponPage::from_u8(next_index) {
-//                 page.0 = next_page;
-//                 info!("Current page: {}!", page.0);
-//             }
-//         }
-//     }
-// }
-
-// fn read_turret_button_events(
-//     mut events: EventReader<UiClickEvent>,
-//     buttons: Query<&TurretPickerButton, With<ActionButton>>
-// ) {
-//     for event in events.read() {
-//         if let Ok(button) = buttons.get(event.target) {
-//             info!("Clicked {}!", button.0);
-//         }
-//     }
-// }
-
-// fn read_game_arena_events(
-//     mut events: EventReader<UiClickEvent>,
-//     game_arena : Query<Entity, With<GameArena>>,
-//     windows: Query<&Window, With<PrimaryWindow>>
-// ) {
-//     for event in events.read() {
-        
-//         if let Ok(_) = game_arena.get(event.target) {
-
-//             let window = windows.single();
-//             let Some(cursor_pos) = window.cursor_position() else {
-//                 return;
-//             };
-
-//             let world_pos = window_to_world_coords(cursor_pos, window.size());
-
-//             info!("Clicked at {} ({})!", cursor_pos, world_pos);
-//         }
-//     }
-// }
-
-

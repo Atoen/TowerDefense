@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use crate::*;
 
 #[derive(Component, Debug, Default, Clone, PartialEq)]
@@ -16,70 +18,80 @@ fn build_component(
     assets: Res<AssetServer>
 ) {
     for (entity, button_source) in &query {
-        let mut text = commands.spawn((
-            UiLink::<ButtonUi>::path("Control/Image/Text"),
-            UiLayout::window().pos(Rl((50., 120.))).anchor(Anchor::Center).pack::<Base>(),
-            UiTextSize::new().size(Rh(60.0)),
-            Pickable::IGNORE,
-            UiAnimator::<Hover>::new().receiver(true),
-            UiColor::<Base>::new(Color::BEVYPUNK_RED),
-            UiColor::<Hover>::new(Color::BEVYPUNK_YELLOW),
-        ));
-
-        if let Some(source_text) = &button_source.text {
-            text.insert(
-                UiText2dBundle {
-                    text: Text::from_section(source_text,
-                        TextStyle {
-                            font: assets.load(AssetPath::FONT_MEDIUM),
-                            font_size: 60.0,
-                            ..default()
-                        }),
-                    ..default()
-                }
-            );
-        };
-
-        let text_entity = text.id();
-
         commands.entity(entity).insert(
-            UiTreeBundle::<ButtonUi>::from(UiTree::new2d("Button")),
+            UiTreeBundle::<ButtonUi>::from(UiTree::new2d("Button"))            
         ).with_children(|ui| {
-            let mut image = ui.spawn((
-                UiLink::<ButtonUi>::path("Control/Image"),
+            let backround = if let Some(image) = &button_source.image {
+                Some(
+                    ui.spawn((
+                        UiLink::<ButtonUi>::path("Control/Image"),
+
+                        UiLayout::window_full().pack::<Base>(),
+                        Pickable::IGNORE,
+                        UiAnimator::<Hover>::new().receiver(true),
+
+                        UiColor::<Base>::new(Color::GRAY_500),
+                        UiColor::<Hover>::new(Color::WHITE),
+
+                        UiImage2dBundle::from(image.clone()),
+                    )).id()
+                )
+            } else { None };
+
+            let text = if let Some(text) = &button_source.text {
+                Some(
+                    ui.spawn((
+                        UiLink::<ButtonUi>::path("Control/Image/Text"),
+                        UiLayout::window().pos(Rl(50.0)).anchor(Anchor::Center).pack::<Base>(),
+                        UiTextSize::new().size(Rh(60.0)),
+                        Pickable::IGNORE,
+                        UiAnimator::<Hover>::new().receiver(true),
+                        UiColor::<Base>::new(Color::GRAY_500),
+                        UiColor::<Hover>::new(Color::WHITE),
+                        UiText2dBundle {
+                            text: Text::from_section(text,
+                                TextStyle {
+                                    font: assets.load(AssetPath::FONT_MEDIUM),
+                                    font_size: 60.0,
+                                    ..default()
+                                }),
+                            ..default()
+                        }
+                    )).id()
+                )
+            } else { None };
+
+            let ui_animator_pipe = match (backround, text) {
+                (Some(a), Some(b)) => Some(vec![a, b]),
+                (Some(a), None) =>  Some(vec![a]),
+                (None, Some(b)) =>  Some(vec![b]),
+                _ => None,
+            };            
+
+            let mut button = ui.spawn((
+                UiLink::<ButtonUi>::path("Control"),
+
                 UiLayout::window_full().pack::<Base>(),
-                Pickable::IGNORE,
-                UiAnimator::<Hover>::new().receiver(true),
-                UiColor::<Base>::new(Color::BEVYPUNK_RED),
-                UiColor::<Hover>::new(Color::BEVYPUNK_YELLOW),
+
+                UiZoneBundle::default(),
+
+                UiAnimator::<Hover>::new().forward_speed(5.0).backward_speed(1.0),
+                OnHoverSetCursor::new(CursorIcon::Pointer),
                 UiLayout::boundary()
                     .pos1(Rl(if button_source.hover_enlarge { -5.0 } else { 0.0 }))
                     .pos2(Rl(if button_source.hover_enlarge { 105.0 } else { 100.0 }))
                     .pack::<Hover>(),
                 UiLayoutController::default(),
+                UiClickEmitter::new(entity)
             ));
 
-            if let Some(source_image) = &button_source.image {
-                image.insert((
-                    UiImage2dBundle::from(source_image.clone()),
-                    // ImageScaleMode::Sliced(TextureSlicer { border: BorderRect::square(20.), ..default() }),
-                ));
+            if let Some(animator) = ui_animator_pipe {
+                button.insert(UiAnimatorPipe::<Hover>::new(animator));
             }
-            let image_entity = image.id();
-
-
-            ui.spawn((
-                UiLink::<ButtonUi>::path("Control"),
-                UiLayout::window_full().pack::<Base>(),
-                UiZoneBundle::default(),
-                UiAnimator::<Hover>::new().forward_speed(6.0).backward_speed(3.0),
-                UiAnimatorPipe::<Hover>::new(vec![text_entity, image_entity]),
-                OnHoverSetCursor::new(CursorIcon::Pointer),
-                UiClickEmitter::new(entity),
-            ));
-        }).push_children(&[text_entity]);
+        });
     }
 }
+
 
 pub struct ButtonPlugin;
 impl Plugin for ButtonPlugin {
