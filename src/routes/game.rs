@@ -1,5 +1,4 @@
-use bevy::asset::transformer;
-use button::Button;
+use backends::xpbd::bevy_xpbd_3d::parry::either::Either::Left;
 
 use crate::*;
 
@@ -9,16 +8,19 @@ pub struct GameRoute;
 fn build_route(
     mut commands: Commands,
     query: Query<Entity, Added<GameRoute>>,
-    mut materials: ResMut<Assets<ColorMaterial>>
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    assets: Res<AssetServer>,
+    first_pass_handle: Res<FirstPassImageHandle>
 ) {
-    for route_entity in &query {
+    for route_entity in &query {        
         commands.entity(route_entity).insert(
             SpatialBundle::default()
         ).with_children(|route| {
 
             route.spawn((
                 UiTreeBundle::<MainUi>::from(UiTree::new2d("Game")),
-                MovableByCamera
+                MovableByCamera,
+                GameLayout
             )).with_children(|ui| {
     
                 let root = UiLink::<MainUi>::path("Root");
@@ -30,31 +32,41 @@ fn build_route(
                 ui.spawn((
                     root.add("Background"),
                     UiLayout::solid().size((1920.0, 1080.0)).scaling(Scaling::Fill).pack::<Base>(),
-                    UiMaterial2dBundle {
-                        material: materials.add(Color::GRAY_800),
+                    Pickable::IGNORE,
+                    UiImage2dBundle {
+                        texture: assets.load(AssetPath::NEBULA),
                         ..default()
-                    },
-                    Pickable::IGNORE
+                    }
+                ));
+
+                ui.spawn((
+                    root.add("Bottom Row/Background"),
+                    UiLayout::window().y(Rl(100.0)).size((Rl(100.0), 100.)).anchor(Anchor::BottomLeft).pack::<Base>(),
+                    UiMaterial2dBundle {
+                        material: materials.add(Color::BLACK.with_alpha(0.7)),
+                        ..default()
+                    }
                 ));
     
                 ui.spawn((
                     root.add("Top Row"),
                     UiLayout::window().size((Rl(100.0), 50.0)).pack::<Base>(),
-                    GameStatus
+                    GameStatus,
+                    Pickable::IGNORE
                 ));
                     
                 ui.spawn((
                     root.add("Bottom Row"),
-                    UiLayout::window().y(Rl(100.0)).size((Rl(100.0), 100.)).anchor(Anchor::BottomLeft).pack::<Base>(),
+                    UiLayout::window().y(Rl(100.0)).size((Rl(100.0), 100.0)).anchor(Anchor::BottomLeft).pack::<Base>(),
                     WeaponSelector
-                ));
+                ));            
 
                 ui.spawn((
                     root.add("Game Arena"),
-                    UiLayout::window().y(50.0).size((Rl(100.0), Rl(100.0) - Ab(150.0))).pack::<Base>(),
-                    UiClickEmitter::SELF,
-                    UiZoneBundle::default(),
-                    GameArena
+                    UiLayout::solid().size((1920.0, 1080.0)).scaling(Scaling::Fill).pack::<Base>(),
+                    UiImage2dBundle::from(first_pass_handle.0.clone()),
+                    GameArena,
+                    UiClickEmitter::SELF
                 ));
             });
         });
@@ -62,102 +74,61 @@ fn build_route(
 }
 
 #[derive(Component)]
-struct GameArena;
+struct GameLayout;
 
-#[derive(Component)]
-struct GridCellHighligh;
-
-fn game_arena_clicked_system(
-    mut events: EventReader<UiClickEvent>,
-    query: Query<&GameArena>,
-    state: Res<State<SelectedBuildabeState>>,
-    mut next_state: ResMut<NextState<SelectedBuildabeState>>,
-    windows: Query<&Window, With<PrimaryWindow>>,
-    mut writer: EventWriter<CashChangedEvent>
-) {
-    for event in events.read() {
-        if let Ok(game_arena) = query.get(event.target) {
-            let Some(click_pos) = windows.single().cursor_position() else { return; };
-            let SelectedBuildabeState::Some(selected_buildable) = state.get() else { 
-                info!("Clicked at {}", click_pos);
-                return; 
-            };
-
-            info!("Placed {:?} at {}", selected_buildable, click_pos);
-
-            next_state.set(SelectedBuildabeState::None);
-            writer.send(CashChangedEvent{ change: -100 });
-        }
-    }
-}
-
-fn game_arena_hover_system(
-    windows: Query<&Window, With<PrimaryWindow>>,
-    query: Query<&GameArena>,
-    mut highlights: Query<(Entity, &mut Transform), With<GridCellHighligh>>,
+fn hide_build_info_system(
     mut commands: Commands,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-    mut meshes: ResMut<Assets<Mesh>>,
+    game_layout: Query<Entity, With<GameLayout>>,
+    info: Query<Entity, With<BuildInfo>>
 ) {
-    if query.get_single().is_err() { return; }
+    let Ok(info) = info.get_single() else { return; };
+    let Ok(game_route) = game_layout.get_single() else { return; };
 
-    let highligh_result = highlights.get_single_mut();
+    commands.entity(info).insert(DespawnAfterFrames { delay: 2, recursive: true });
 
-    let window = windows.single();
-    let Some(cursor_pos) = window.cursor_position() else {
-        if let Ok((highlight, _)) = highligh_result {
-            commands.entity(highlight).despawn();
-        }
-        return;
-    };
+    let selector = commands.spawn((
+        UiLink::<MainUi>::path("Root/Bottom Row"),
+        UiLayout::window().y(Rl(100.0)).size((Rl(100.0), 100.)).anchor(Anchor::BottomLeft).pack::<Base>(),
+        WeaponSelector
+    )).id();
 
-    let pos = window_to_world_coords(cursor_pos, window.size());
-
-    let grid_size = 40.0;
-    let aligned_x = (pos.x / grid_size).floor() * grid_size;
-    let aligned_y = (pos.y / grid_size).floor() * grid_size;
-
-    let start = vec2(aligned_x, aligned_y);
-
-    if let Ok((_, mut transform)) = highligh_result {
-        transform.translation = Vec3 { x: start.x + 20.0, y: start.y + 20.0, z: 5.0 };
-    } else {
-        commands.spawn((
-            MaterialMesh2dBundle {
-                mesh: Mesh2dHandle(meshes.add(Rectangle {half_size: Vec2::splat(20.0)})),
-                material: materials.add(Color::WHITE),
-                transform: Transform {
-                    translation: Vec3 { x: start.x + 20.0, y: start.y + 20.0, z: 5.0 },
-                    ..default()
-                },
-                ..default()
-            },
-            GridCellHighligh
-        ));
-    }
-
-
-
+    commands.entity(game_route).add_child(selector);
 }
 
-fn window_to_world_coords(cursor_pos: Vec2, window_size: Vec2) -> Vec3 {
-    Vec3 { 
-        x: cursor_pos.x - window_size.x / 2.0,
-        y: window_size.y / 2.0 - cursor_pos.y,
-        z: 0.0
-    }
+fn build_info_display_system(
+    mut commands: Commands,
+    weapon_selector: Query<Entity, With<WeaponSelector>>,
+    game_layout: Query<Entity, With<GameLayout>>,
+    selected_buildable: Res<State<SelectedBuildabeState>>
+) {
+    let state = selected_buildable.get();
+    let SelectedBuildabeState::Some(buildable) = state else { return; };
+
+    let Ok(weapon_selector) = weapon_selector.get_single() else { return; };
+    let Ok(game_route) = game_layout.get_single() else { return; };
+
+    commands.entity(weapon_selector).insert(DespawnAfterFrames { delay: 2, recursive: true });
+    let info = commands.spawn((
+        UiLink::<MainUi>::path("Root/Bottom Row"),
+        UiLayout::window().y(Rl(100.0)).size((Rl(100.0), 100.)).anchor(Anchor::BottomLeft).pack::<Base>(),
+        BuildInfo(*buildable)
+    )).id();
+
+    commands.entity(game_route).add_child(info);
 }
 
-
-pub struct GamePlugin;
-impl Plugin for GamePlugin {
+pub struct GameLayoutPlugin;
+impl Plugin for GameLayoutPlugin {
     fn build(&self, app: &mut App) {
         app
-            .add_systems(PostUpdate, game_arena_clicked_system
-                .distributive_run_if(on_event::<UiClickEvent>())
-                .distributive_run_if(input_just_pressed(MouseButton::Left)))
-            .add_systems(Update, game_arena_hover_system)
-            .add_systems(PreUpdate, build_route.before(UiSystems::Compute));
+            .add_systems(Update, build_route
+                .before(UiSystems::Compute))
+
+            .add_systems(Update, build_info_display_system
+                .run_if(on_event::<BuildableSelecedEvent>()))
+
+            .add_systems(Update, hide_build_info_system
+                .run_if(on_event::<InfoClosedEvent>()));
     }
 }
 

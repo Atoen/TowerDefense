@@ -50,23 +50,16 @@ fn build_route(
                 let mut offset = 0.0;
 
                 for button_type in MainMenuButton::iter() {
-                    let mut button = ui.spawn((
+                    let button = ui.spawn((
                         list.add(button_type.str()),
                         button_type.clone(),
                         UiLayout::window().y(Rl(offset)).size(Rl((100.0, size))).pack::<Base>(),
                         MenuButton {
                             text: button_type.str()
-                        }
-                    ));
+                        },
+                    )).id();
 
-                    if button_type == MainMenuButton::NewGame {
-                        button.insert((
-                            OnUiClickDespawn::new(route_entity),
-                            OnUiClickCommands::new(|commands| {
-                                commands.spawn(GameRoute);
-                            })
-                        ));
-                    }
+                    // writer.send(UiElementAdded::new(&mut commands));
 
                     offset += gap + size;
                 }
@@ -82,6 +75,7 @@ enum MainMenuButton {
     Settings,
     QuitGame
 }
+
 impl MainMenuButton {
     fn str(&self) -> String {
         match self {
@@ -95,16 +89,22 @@ impl MainMenuButton {
 
 fn main_menu_button_clicked_system(
     mut events: EventReader<UiClickEvent>,
+    mut commands: Commands,
+    main_menu_route: Query<Entity, With<MainMenuRoute>>,
     query: Query<&MainMenuButton, With<MenuButton>>,
-    mut exit: EventWriter<AppExit>
+    mut exit: EventWriter<AppExit>,
 ) {
     for event in events.read() {
         if let Ok(button) = query.get(event.target) {
             info!("Pressed: {}", button.str());
 
             match button {
+                MainMenuButton::NewGame => { 
+                    commands.entity(main_menu_route.single()).insert(DespawnAfterFrames::ROUTE_NAVIGATION);
+                    commands.spawn(GameRoute);
+                },
                 MainMenuButton::QuitGame => {
-                    exit.send(AppExit::Success);
+                     exit.send(AppExit::Success);
                 },
                 _ => {}
             }
@@ -116,9 +116,9 @@ pub struct MainMenuRoutePlugin;
 impl Plugin for MainMenuRoutePlugin {
     fn build(&self, app: &mut App) {
         app
-            .add_systems(PreUpdate, build_route.before(UiSystems::Compute))
-            .add_systems(Update, main_menu_button_clicked_system
-                .distributive_run_if(on_event::<UiClickEvent>())
+            .add_systems(PreUpdate, build_route
+                .before(UiSystems::Compute))
+            .add_systems(PostUpdate, main_menu_button_clicked_system
                 .distributive_run_if(input_just_pressed(MouseButton::Left))
             );
     }

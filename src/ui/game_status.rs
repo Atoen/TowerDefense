@@ -98,7 +98,7 @@ fn toggle_pause_system(
     mut next_state: ResMut<NextState<PausedState>>
 ) {
     for event in events.read() {
-        if let Ok(_) = query.get(event.target) {            
+        if query.get(event.target).is_ok() {            
             let next_pause_state = match state.get() {
                 PausedState::Running => PausedState::Paused,
                 PausedState::Paused => PausedState::Running
@@ -109,7 +109,6 @@ fn toggle_pause_system(
             next_state.set(next_pause_state);
         }
     }
-
 }
 
 fn game_cash_updated_system(

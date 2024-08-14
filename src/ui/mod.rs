@@ -13,6 +13,15 @@ pub use weapon_selector::*;
 pub mod weapon_page;
 pub use weapon_page::*;
 
+pub mod build_info;
+pub use build_info::*;
+
+pub mod info_popup;
+pub use info_popup::*;
+
+pub mod game_arena;
+pub use game_arena::*;
+
 use bevy::prelude::*;
 
 pub struct ComponentPlugin;
@@ -23,6 +32,8 @@ impl Plugin for ComponentPlugin {
             .add_plugins(GameStatusPlugin)
             .add_plugins(WaponSelectorPlugin)
             .add_plugins(WeaponPagePlugin)
+            .add_plugins(BuildInfoPlugin)
+            .add_plugins(GameArenaPlugin)
             .add_plugins(MenuButtonPlugin);
     }
 }

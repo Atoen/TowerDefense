@@ -1,8 +1,5 @@
-
-use bevy::{math::Vec3, prelude::*, sprite::{MaterialMesh2dBundle, Mesh2dHandle}, window::{PrimaryWindow, Window}};
-use bevy_prng::ChaCha8Rng;
 use bevy_rand::prelude::GlobalEntropy;
-use rand_core::RngCore;
+use rand::RngCore;
 
 use crate::*;
 
@@ -66,14 +63,12 @@ pub fn projectile_system(
             continue;
         }
 
-        if projectile.auto_despawn {
-            if transform.translation.y > win_size.height / 2.0 + DESPAWN_MARGIN
-                || transform.translation.y < -win_size.height / 2.0 - DESPAWN_MARGIN
-                || transform.translation.x > win_size.width / 2.0 + DESPAWN_MARGIN
-                || transform.translation.x < -win_size.width / 2.0 - DESPAWN_MARGIN
-            {
-                commands.entity(entity).despawn();
-            }
+        if projectile.auto_despawn && (
+                transform.translation.y > win_size.height / 2.0 + DESPAWN_MARGIN ||
+                transform.translation.y < -win_size.height / 2.0 - DESPAWN_MARGIN || 
+                transform.translation.x > win_size.width / 2.0 + DESPAWN_MARGIN ||
+                transform.translation.x < -win_size.width / 2.0 - DESPAWN_MARGIN) {
+            commands.entity(entity).despawn();
         }
     }
 }
@@ -297,24 +292,7 @@ pub fn idle_rotation_system(
     }
 }
 
-fn smaller_magnitude(a: f32, b: f32) -> f32 {
-    if a.abs() < b.abs() {
-        a
-    } else {
-        b
-    }
-}
-
-fn shortest_angle_diff(from: f32, to: f32) -> f32 {
-    let diff = (to - from).rem_euclid(2.0 * std::f32::consts::PI);
-    if diff > std::f32::consts::PI {
-        diff - 2.0 * std::f32::consts::PI
-    } else {
-        diff
-    }
-}
-
-pub fn turret_targeting_system(
+fn turret_targeting_system(
     time: Res<Time>,
     mut turrets: Query<(&mut TargetingTurret, &mut Transform, Option<&RotationSpeed>)>,
     targets: Query<&Target>
@@ -359,7 +337,7 @@ pub fn turret_targeting_system(
 }
 
 
-pub fn projectile_turret_attack_system(
+fn projectile_turret_attack_system(
     mut commands: Commands,
     game_textures: Res<GameTextures>,
     time: Res<Time>,

@@ -1,10 +1,12 @@
 use std::fmt::Debug;
 use std::ops::Add;
 
+use bevy::app::PluginGroupBuilder;
 use bevy::core_pipeline::bloom::BloomSettings;
 use bevy::input::common_conditions::input_just_pressed;
-use bevy::math::vec2;
 use bevy::prelude::*;
+use bevy::render::render_resource::{Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages};
+use bevy::render::view::RenderLayers;
 use bevy::render::RenderPlugin;
 use bevy::render::settings::{Backends, RenderCreation, WgpuSettings};
 use bevy::sprite::{Anchor, MaterialMesh2dBundle, Mesh2dHandle};
@@ -14,10 +16,12 @@ use bevy_prng::{ChaCha8Rng, WyRand};
 use bevy_rand::plugin::EntropyPlugin;
 use button::Button;
 use components::turrets::Target;
+use picking_core::PickSet;
 use strum::{EnumCount, IntoEnumIterator};
 use strum_macros::{Display, EnumCount, EnumIter, IntoStaticStr};
 use systems::turrets::*;
-use bevy_lunex::prelude::*;
+use bevy_lunex::{lunex_picking, prelude::*, rendered_texture_picking};
+use bevy_mod_picking::prelude::*;
 
 const ARROW_SPRITE: &str = "arrow.png";
 const ARROW_SIZE: (f32, f32) = (50., 50.);
@@ -29,6 +33,10 @@ const RAIL_GUN_BEAM_SPRITE: &str = "rail_gun_beam.png";
 const CURSOR_SHEET: &str = "cursor.png"; 
 
 const EXPLOSION_LEN: usize = 16;
+
+const GRID_CELL_SIZE: u32 = 50;
+const GRID_WIDTH: u32 = 40;
+const GRID_HEIGHT: u32 = 20;
 
 mod components;
 mod systems;
@@ -42,6 +50,15 @@ use assets::*;
 
 mod routes;
 use routes::*;
+
+mod utils;
+use utils::*;
+
+mod turrets;
+use turrets::*;
+
+mod game;
+use game::*;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Display, EnumIter, EnumCount)]
 pub enum TurretType {
@@ -69,10 +86,20 @@ pub enum PausedState {
 }
 
 #[derive(Resource)]
+pub struct GridSize(pub UVec2);
+
+#[derive(Component)]
+pub struct Grid;
+
+#[derive(Resource)]
 pub struct WinSize {
     pub width: f32,
     pub height: f32,
 }
+
+#[derive(Resource)]
+struct FirstPassImageHandle(Handle<Image>);
+
 
 #[derive(Resource)]
 pub struct GameTextures {
@@ -104,14 +131,17 @@ fn main() {
 
     App::new()
 
-        .add_plugins((default_plugins, EntropyPlugin::<ChaCha8Rng>::default(), UiPlugin))
-        // .add_plugins(UiDebugPlugin::<MainUi>::new())
+        .add_plugins((default_plugins.set(low_latency_window_plugin()), EntropyPlugin::<ChaCha8Rng>::default()))
+        .add_plugins(UiPlugin)
         .add_plugins(bevy_framepace::FramepacePlugin)
-        
+        .add_plugins(UtilPlugin)
         .add_plugins(ComponentPlugin)
         .add_plugins(RoutePlugin)
+        .add_plugins(GamePlugin)
         .add_systems(Startup, setup)
+        // .add_systems(Update, rotator_system)
         .init_state::<PausedState>()
+        .insert_resource(GridSize(UVec2::new(GRID_WIDTH, GRID_HEIGHT)))
         // .add_systems(Update, (
         //     // move_target,
         //     projectile_system,
@@ -140,7 +170,7 @@ fn setup(
     query: Query<&Window, With<PrimaryWindow>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>
+    mut images: ResMut<Assets<Image>>
 ) {
 
     settings.limiter = Limiter::Auto;
@@ -148,7 +178,87 @@ fn setup(
     let Ok(primary) = query.get_single() else {
         return;
     };
-    
+
+    let size = Extent3d {
+        width: 1920,
+        height: 1080,
+        ..default()
+    };
+
+    let mut image = Image {
+        texture_descriptor: TextureDescriptor {
+            label: None,
+            size,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::Bgra8UnormSrgb,
+            mip_level_count: 1,
+            sample_count: 1,
+            usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST | TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[]
+        },
+        ..default()
+    };
+
+    image.resize(size);
+    let image_handle = images.add(image);
+    commands.insert_resource(FirstPassImageHandle(image_handle.clone()));
+    let first_pass_layer = RenderLayers::layer(1);
+
+    commands.spawn((
+        Camera2dBundle {
+            camera: Camera {
+                order: -1,
+                target: image_handle.clone().into(),
+                clear_color: Color::NONE.into(),
+                ..default()
+            },
+            ..default()
+        },
+        first_pass_layer.clone(),
+        GameCamera
+    ));
+
+    // commands.spawn((
+    //     Camera2dBundle {
+    //         camera: Camera {
+    //             order: -1,
+    //             target: image_handle.clone().into(),
+    //             clear_color: Color::NONE.into(),
+    //             ..default()
+    //         },
+    //         ..default()
+    //     },
+    //     first_pass_layer.clone(),
+    //     GameCamera
+    // ));
+
+    // commands.spawn((
+    //     MaterialMesh2dBundle {
+    //         mesh: Mesh2dHandle(meshes.add(Rectangle { half_size: vec2(50.0, 20.0) })),
+    //         material: materials.add(Color::GREEN),
+    //         ..default()
+    //     },
+    //     first_pass_layer.clone() 
+    // ));
+
+    commands.spawn((
+        SpriteBundle {
+            texture: asset_server.load(AssetPath::GRID_CELL),
+            sprite: Sprite {
+                custom_size: Some(Vec2::new((GRID_CELL_SIZE * GRID_WIDTH) as f32, (GRID_CELL_SIZE * GRID_HEIGHT) as f32)),
+                ..default()
+            },
+            ..default()
+        },
+        ImageScaleMode::Tiled {
+            tile_x: true,
+            tile_y: true,
+            stretch_value: 1.0
+        },
+        first_pass_layer.clone(),
+        Grid
+    ));
+
     let win_size = WinSize { width: primary.width(), height: primary.height() };
     commands.insert_resource(win_size);
     
@@ -164,7 +274,7 @@ fn setup(
     commands.insert_resource(GameCash(10000));
     commands.spawn((
         MainUi,
-        BloomSettings::OLD_SCHOOL,
+        BloomSettings::NATURAL,
         InheritedVisibility::default(),
         Camera2dBundle {
             transform: Transform::from_xyz(0.0, 0.0, 1000.0),
@@ -202,16 +312,20 @@ fn setup(
         );
     });
 
-    // commands.spawn((
-    //     Target {
-    //         pos: Vec3::ZERO
-    //     }, 
+    // commands.spawn(
     //     MaterialMesh2dBundle {
-            // mesh: Mesh2dHandle(meshes.add(Circle {radius: 20.0})),
-    //         material: materials.add(Color::WHITE.with_alpha(0.0)),
+    //         mesh: Mesh2dHandle(meshes.add(Circle {radius: 10.0})),
+    //         material: materials.add(Color::RED.with_alpha(0.5)),
+    //         transform: Transform {
+    //             translation: Vec3::ZERO.with_z(50.0),
+    //             ..default()
+    //         },
     //         ..default()
     //     }
-    // ));
+    // );
 
     commands.spawn(MainMenuRoute);
 }
+
+#[derive(Component)]
+struct GameCamera;

@@ -15,6 +15,7 @@ fn build_component(
     mut materials: ResMut<Assets<ColorMaterial>>
 ) {
     for (entity, button_source) in &query {
+
         commands.entity(entity).insert(
             UiTreeBundle::<MenuButtonUi>::from(UiTree::new2d("Menu Button"))
         ).with_children(|ui| {
@@ -81,6 +82,7 @@ impl Plugin for MenuButtonPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_plugins(UiGenericPlugin::<MenuButtonUi>::new())
-            .add_systems(Update, build_component.before(UiSystems::Compute));
+            .add_systems(Update, build_component
+                .before(UiSystems::Compute));
     }
 }

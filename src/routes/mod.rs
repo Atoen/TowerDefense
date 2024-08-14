@@ -10,6 +10,6 @@ pub struct RoutePlugin;
 impl Plugin for RoutePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(MainMenuRoutePlugin);
-        app.add_plugins(GamePlugin);
+        app.add_plugins(GameLayoutPlugin);
     }
 }

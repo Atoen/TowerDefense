@@ -66,7 +66,7 @@ fn build_component(
                         image: None,
                         text: Some(element.to_string())
                     },
-                    BuildableButton(element.clone())
+                    BuildableButton(*element)
                 ));
             }
         });
@@ -133,7 +133,6 @@ impl Plugin for WeaponPagePlugin {
         app
             .add_event::<BuildableSelecedEvent>()
             .add_systems(Update, build_component.before(UiSystems::Compute))
-            // .add_plugins(UiDebugPlugin::<WeaponPageUi>::new())
             .add_plugins(UiGenericPlugin::<WeaponPageUi>::new())
             .add_systems(PostUpdate, buildable_clicked_system
                 .distributive_run_if(on_event::<UiClickEvent>())

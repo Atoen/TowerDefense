@@ -16,8 +16,11 @@ impl AssetPath {
     pub const PULSE_BLASTER: &'static str = "turrets/PulseBlaster.png";
     pub const RAIL_GUN: &'static str = "turrets/RailGun.png";
 
-    pub const CHEVRON_LEFT: &'static str = "images/chevron_left.png";
-    pub const CHEVRON_RIGHT: &'static str = "images/chevron_right.png";
+    pub const ARROW_LEFT: &'static str = "images/arrow_left.png";
+    pub const ARROW_RIGHT: &'static str = "images/arrow_right.png";
+
+    pub const NEBULA: &'static str = "images/nebula.png";
+    pub const GRID_CELL: &'static str = "images/grid_cell.png";
 }
 
 #[allow(dead_code)]
@@ -42,12 +45,12 @@ pub trait ColorPalette {
 }
 
 impl ColorPalette for Color {
-    const RED: Color = Color::srgb(255./255., 98./255., 81./255.);
+    const RED: Color = Color::srgb(1., 98./255., 81./255.);
     const RED_DIM: Color = Color::srgb(172./255., 64./255., 63./255.);
     const YELLOW: Color = Color::srgb(252./255., 226./255., 8./255.);
     const BLUE: Color = Color::srgb(8./255., 226./255., 252./255.);
-    const GREEN: Color = Color::srgb(81./255., 255./255., 98./255.);
-    const ORANGE: Color = Color::srgb(255./255., 165./255., 0./255.);
+    const GREEN: Color = Color::srgb(81./255., 1., 98./255.);
+    const ORANGE: Color = Color::srgb(1., 165./255., 0./255.);
     const PURPLE: Color = Color::srgb(128./255., 0./255., 128./255.);
     
     const GRAY_100: Color = Color::srgb(248./255., 249./255., 250./255.);

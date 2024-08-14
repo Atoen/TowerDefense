@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use crate::*;
 
 #[derive(Component, Debug, Default, Clone, PartialEq)]
@@ -21,9 +19,7 @@ fn build_component(
         commands.entity(entity).insert(
             UiTreeBundle::<ButtonUi>::from(UiTree::new2d("Button"))            
         ).with_children(|ui| {
-            let backround = if let Some(image) = &button_source.image {
-                Some(
-                    ui.spawn((
+            let backround = button_source.image.as_ref().map(|image| ui.spawn((
                         UiLink::<ButtonUi>::path("Control/Image"),
 
                         UiLayout::window_full().pack::<Base>(),
@@ -34,13 +30,9 @@ fn build_component(
                         UiColor::<Hover>::new(Color::WHITE),
 
                         UiImage2dBundle::from(image.clone()),
-                    )).id()
-                )
-            } else { None };
+                    )).id());
 
-            let text = if let Some(text) = &button_source.text {
-                Some(
-                    ui.spawn((
+            let text = button_source.text.as_ref().map(|text| ui.spawn((
                         UiLink::<ButtonUi>::path("Control/Image/Text"),
                         UiLayout::window().pos(Rl(50.0)).anchor(Anchor::Center).pack::<Base>(),
                         UiTextSize::new().size(Rh(60.0)),
@@ -57,9 +49,7 @@ fn build_component(
                                 }),
                             ..default()
                         }
-                    )).id()
-                )
-            } else { None };
+                    )).id());
 
             let ui_animator_pipe = match (backround, text) {
                 (Some(a), Some(b)) => Some(vec![a, b]),
