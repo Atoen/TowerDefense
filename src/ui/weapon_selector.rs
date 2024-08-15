@@ -12,7 +12,7 @@ struct WeaponSelectorUi;
 fn build_component(
     mut commands: Commands,
     query: Query<Entity, Added<WeaponSelector>>,
-    assets: Res<AssetServer>
+    ui_textures: Res<UiTextures>
 ) {
     for entity in &query {
         commands.entity(entity).insert(
@@ -39,7 +39,7 @@ fn build_component(
                 Button {
                     hover_enlarge: false,
                     text: None,
-                    image: Some(assets.load(AssetPath::ARROW_LEFT))
+                    image: Some(ui_textures.arrow_left.clone())
                 },
                 PageNavigation::Previous
             ));
@@ -50,7 +50,7 @@ fn build_component(
                 Button {
                     hover_enlarge: false,
                     text: None,
-                    image: Some(assets.load(AssetPath::ARROW_RIGHT))
+                    image: Some(ui_textures.arrow_right.clone())
                 },
                 PageNavigation::Next
             ));

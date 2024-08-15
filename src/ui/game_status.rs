@@ -11,8 +11,8 @@ struct GameStatusUi;
 fn build_component(
     mut commands: Commands,
     query: Query<Entity, Added<GameStatus>>,
-    assets: Res<AssetServer>,
-    game_cash: Res<GameCash>
+    game_cash: Res<GameCash>,
+    ui_textures: Res<UiTextures>
 ) {
     for entity in &query {
         commands.entity(entity).insert(
@@ -32,7 +32,7 @@ fn build_component(
                 Button {
                     hover_enlarge: false,
                     text: None,
-                    image: Some(assets.load(AssetPath::PAUSE))
+                    image: Some(ui_textures.pause.clone())
                 },
                 PasueButton
             ));
@@ -47,7 +47,7 @@ fn build_component(
                              style: TextStyle {
                                  font_size: 50.0,
                                  color: Color::GRAY_200,
-                                 font: assets.load(AssetPath::FONT_REGULAR)
+                                 ..default()
                              }
                          },
                          TextSection {
@@ -55,7 +55,7 @@ fn build_component(
                              style: TextStyle {
                                  font_size: 50.0,
                                  color: Color::GRAY_200,
-                                 font: assets.load(AssetPath::FONT_REGULAR)
+                                 ..default()
                              }
                          }
                      ]),
@@ -66,7 +66,7 @@ fn build_component(
 
             ui.spawn((
                 row.add("Start Round"),
-                UiLayout::window().x(Rl(100.0)).anchor(Anchor::TopRight).size((100.0, 40.0)).pack::<Base>(),
+                UiLayout::window().x(Rl(100.0)).anchor(Anchor::TopRight).size((150.0, 40.0)).pack::<Base>(),
                 Button {
                     hover_enlarge: true,
                     text: Some("Start Round".into()),

@@ -43,7 +43,6 @@ fn build_component(
                         UiText2dBundle {
                             text: Text::from_section(text,
                                 TextStyle {
-                                    font: assets.load(AssetPath::FONT_MEDIUM),
                                     font_size: 60.0,
                                     ..default()
                                 }),

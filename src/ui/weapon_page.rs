@@ -17,36 +17,36 @@ fn build_component(
         commands.entity(entity).insert(
             UiTreeBundle::<WeaponPageUi>::from(UiTree::new2d("Weapon Page"))
         ).with_children(|ui| {
-            let elements_to_display = match selected_page.get() {
+            let elements_to_display: Vec<Buildable> = match selected_page.get() {
                 PageState::Standard => vec![
-                    Buildable::PulseBlaster,  
-                    Buildable::IonCannon,     
-                    Buildable::SwarmTurret,   
-                    Buildable::PlasmaRay,          
-                    Buildable::CryoGenerator, 
-                    Buildable::Tesla,         
-                    Buildable::SeekerLauncher,
-                    Buildable::AcidSprayer,    
-                    Buildable::FireThrower,       
-                ],
-        
+                    Turret::PulseBlaster,
+                    Turret::IonCannon,
+                    Turret::SwarmTurret,
+                    Turret::PlasmaRay,
+                    Turret::CryoGenerator,
+                    Turret::Tesla,
+                    Turret::SeekerLauncher,
+                    Turret::AcidSprayer,
+                    Turret::FireThrower
+                ].into_iter().map(Buildable::Turret).collect(),
+
                 PageState::Advanced => vec![
-                    Buildable::Sentinel,
-                    Buildable::CyberOro,
-                    Buildable::RailGun,
-                ],
-        
+                    Turret::Sentinel,
+                    Turret::CyberOro,
+                    Turret::RailGun
+                ].into_iter().map(Buildable::Turret).collect(),
+
                 PageState::Building => vec![
-                    Buildable::Module,
-                    Buildable::Mine,
-                    Buildable::Blades,
-                ],
+                    StandaloneBuildable::Module,
+                    StandaloneBuildable::Consumable(Consumable::ProximityMine),
+                    StandaloneBuildable::Consumable(Consumable::RotorBlades)
+                ].into_iter().map(Buildable::Standalone).collect()
             };
 
-            let width = Ab(60.0);
+            let width = Ab(90.0);
             let height = Ab(30.0);
         
-            let spacing = Ab(20.0);
+            let spacing = Ab(30.0);
             let fragments = elements_to_display.len();
             let total_width = width * fragments as f32 + spacing * (fragments - 1) as f32;
             
@@ -74,55 +74,23 @@ fn build_component(
 }
 
 #[derive(Event)]
-pub struct BuildableSelecedEvent(Buildable);
-
-#[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash, Display)]
-
-pub enum SelectedBuildabeState {
-    #[default]
-    None,
-    Some(Buildable)
-}
+pub struct BuildableSelecedEvent;
 
 #[derive(Component)]
 struct BuildableButton(Buildable);
-
-#[derive(Display, EnumIter, EnumCount, Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum Buildable {
-    // Standard Turrets
-    PulseBlaster,  
-    IonCannon,     
-    SwarmTurret,   
-    PlasmaRay,          
-    CryoGenerator, 
-    Tesla,         
-    SeekerLauncher,
-    AcidSprayer,    
-    FireThrower,       
-
-    // Advanced Turrets
-    Sentinel,
-    CyberOro,
-    RailGun,
-
-    // Buildings
-    Module,
-    Mine,
-    Blades,
-}
 
 fn buildable_clicked_system(
     mut events: EventReader<UiClickEvent>,
     mut writer: EventWriter<BuildableSelecedEvent>,
     query: Query<&BuildableButton>,
-    mut next_state: ResMut<NextState<SelectedBuildabeState>>
+    mut selected_buildable: ResMut<SelectedBuildable>
 ) {
     for event in events.read() {
         if let Ok(buildable_button) = query.get(event.target) {
             info!("Clicked: {}", buildable_button.0);
 
-            writer.send(BuildableSelecedEvent(buildable_button.0));
-            next_state.set(SelectedBuildabeState::Some(buildable_button.0));
+            writer.send(BuildableSelecedEvent);
+            selected_buildable.0 = Some(buildable_button.0);
         }
     }
 }
@@ -132,11 +100,15 @@ impl Plugin for WeaponPagePlugin {
     fn build(&self, app: &mut App) {
         app
             .add_event::<BuildableSelecedEvent>()
+
             .add_systems(Update, build_component.before(UiSystems::Compute))
+
             .add_plugins(UiGenericPlugin::<WeaponPageUi>::new())
+
             .add_systems(PostUpdate, buildable_clicked_system
                 .distributive_run_if(on_event::<UiClickEvent>())
                 .distributive_run_if(input_just_pressed(MouseButton::Left)))
-            .init_state::<SelectedBuildabeState>();
+
+            .init_resource::<SelectedBuildable>();
     }
 }

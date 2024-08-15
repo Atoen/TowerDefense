@@ -1,5 +1,3 @@
-use backends::xpbd::bevy_xpbd_3d::parry::either::Either::Left;
-
 use crate::*;
 
 #[derive(Component, Debug, Default, Clone, PartialEq)]
@@ -9,7 +7,7 @@ fn build_route(
     mut commands: Commands,
     query: Query<Entity, Added<GameRoute>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    assets: Res<AssetServer>,
+    ui_textures: Res<UiTextures>,
     first_pass_handle: Res<FirstPassImageHandle>
 ) {
     for route_entity in &query {        
@@ -34,7 +32,7 @@ fn build_route(
                     UiLayout::solid().size((1920.0, 1080.0)).scaling(Scaling::Fill).pack::<Base>(),
                     Pickable::IGNORE,
                     UiImage2dBundle {
-                        texture: assets.load(AssetPath::NEBULA),
+                        texture: ui_textures.nebula.clone(),
                         ..default()
                     }
                 ));
@@ -99,10 +97,9 @@ fn build_info_display_system(
     mut commands: Commands,
     weapon_selector: Query<Entity, With<WeaponSelector>>,
     game_layout: Query<Entity, With<GameLayout>>,
-    selected_buildable: Res<State<SelectedBuildabeState>>
+    selected_buildable: Res<SelectedBuildable>
 ) {
-    let state = selected_buildable.get();
-    let SelectedBuildabeState::Some(buildable) = state else { return; };
+    let Some(buildable) = &selected_buildable.0 else { return; };
 
     let Ok(weapon_selector) = weapon_selector.get_single() else { return; };
     let Ok(game_route) = game_layout.get_single() else { return; };

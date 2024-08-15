@@ -27,19 +27,18 @@ fn build_component(
             let height = Ab(30.0);
             let spacing = Ab(20.0);
 
-            let is_module = build_info.0 == Buildable::Module;
             let y = Rh(50.0) - height * 0.5;
 
-            if is_module {
+            if build_info.0.is_module() {
                 ui.spawn((
-                    row.add("Cancel"),
+                    row.add("Done"),
                     UiLayout::window().pos((-width * 0.5 + Rw(50.0), y)).size((width, height)).pack::<Base>(),
                     Button {
                         hover_enlarge: false,
                         image: None,
-                        text: Some("Cancel".into())
+                        text: Some("Done".into())
                     },
-                    InfoButton::Cancel
+                    InfoButton::Done
                 ));
 
                 return;
@@ -69,23 +68,43 @@ fn build_component(
 enum InfoButton {
     Info,
     Build,
-    Cancel
+    Done
 }
 
 #[derive(Event)]
 pub struct InfoClosedEvent;
 
+
 fn info_button_clicked_system(
     mut events: EventReader<UiClickEvent>,
     mut writer: EventWriter<InfoClosedEvent>,
+    mut build_writer: EventWriter<BuildEvent>,
+    mut selected_buildable: ResMut<SelectedBuildable>,
+    selected_cell: Res<SelectedCell>,
     query: Query<&InfoButton>,
 ) {
     for event in events.read() {
         if let Ok(info_button) = query.get(event.target) {
-            info!("Clicked: {}", info_button);
+            debug!("Clicked: {}", info_button);
 
-            if let InfoButton::Cancel = info_button {
-                writer.send(InfoClosedEvent);
+            match info_button {
+                InfoButton::Done => {
+                    selected_buildable.0 = None;
+                    writer.send(InfoClosedEvent);
+                }
+                InfoButton::Build => {
+
+                    let Some(cell_pos) = selected_cell.0 else { continue };
+                    let Some(buildable) = selected_buildable.0 else { continue };
+
+                    if !buildable.is_module() {
+                        build_writer.send(BuildEvent {
+                            buildable,
+                            cell_pos
+                        });
+                    }
+                }
+                _ => (),
             }
         }
     }
@@ -96,9 +115,13 @@ impl Plugin for BuildInfoPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_event::<InfoClosedEvent>()
+            .add_event::<BuildEvent>()
+
             .add_plugins(UiGenericPlugin::<BuildInfoUi>::new())
+
             .add_systems(Update, build_component.before(UiSystems::Compute))
-            .add_systems(PostUpdate, info_button_clicked_system
+
+            .add_systems(PreUpdate, info_button_clicked_system
                 .distributive_run_if(on_event::<UiClickEvent>())
                 .distributive_run_if(input_just_pressed(MouseButton::Left)));
     }

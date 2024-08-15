@@ -33,7 +33,7 @@ fn init(
     ));
 }
 
-const DRAG_DISTANCE_THRESHOLD: f32 = 5.0;
+const DRAG_DISTANCE_THRESHOLD: f32 = 10.0;
 const DRAG_DISTANCE_THRESHOLD_2: f32 = DRAG_DISTANCE_THRESHOLD * DRAG_DISTANCE_THRESHOLD;
 
 fn game_arena_clicked_system(
@@ -65,9 +65,9 @@ fn game_arena_clicked_system(
                 drag_data.is_dragging = false;
                 drag_data.drag_distance = Vec2::ZERO;
             } else if drag_data.is_dragging {
-                info!("Drag ended");
+                debug!("Drag ended");
             } else {
-                info!("Mouse click");
+                debug!("Mouse click");
                 writer.send(GameArenaClickedEvent(cursor_pos));
             }
         }
@@ -80,50 +80,65 @@ fn game_arena_clicked_system(
 
         if !drag_data.is_dragging && drag_data.drag_distance.length_squared() >= DRAG_DISTANCE_THRESHOLD_2 {
             drag_data.is_dragging = true;
-            info!("Drag started");
+            drag_data.drag_distance = Vec2::ZERO;
+            debug!("Drag started");
         }
 
         if drag_data.is_dragging {
             let normalized_displacement = drag_data.drag_distance * projection.scale;
-            translate_camera(&mut transform, &normalized_displacement);
+            move_camera(&mut transform, &normalized_displacement);
 
             drag_data.drag_distance = Vec2::ZERO;
         }
     }
 }
 
-fn translate_camera(camera_transform: &mut Transform, displacement: &Vec2) {
+fn move_camera(camera_transform: &mut Transform, displacement: &Vec2) {
     camera_transform.translation.x -= displacement.x;
     camera_transform.translation.y += displacement.y;
 
-    let x_min = -300.0;
-    let x_max = 300.0;
-    let y_min = -300.0;
-    let y_max = 300.0;
+    const X_MIN: f32 = -500.0;
+    const X_MAX: f32 = 500.0;
+    const Y_MIN: f32 = -300.0;
+    const Y_MAX: f32 = 300.0;
 
-    camera_transform.translation.x = camera_transform.translation.x.clamp(x_min, x_max);
-    camera_transform.translation.y = camera_transform.translation.y.clamp(y_min, y_max);
+    camera_transform.translation.x = camera_transform.translation.x.clamp(X_MIN, X_MAX);
+    camera_transform.translation.y = camera_transform.translation.y.clamp(Y_MIN, Y_MAX);
 }
 
 fn handle_scroll(
+    windows: Query<&Window, With<PrimaryWindow>>,
     mut scroll: EventReader<MouseWheel>,
     game_arena: Query<Option<&PickingInteraction>, With<GameArena>>,
-    mut game_camera: Query<&mut OrthographicProjection, With<GameCamera>>
+    mut game_camera: Query<(&mut Transform, &mut OrthographicProjection), With<GameCamera>>
 ) {
     let Ok(Some(PickingInteraction::Hovered)) = game_arena.get_single() else { return };
-    let Ok(mut projection) = game_camera.get_single_mut() else { return };
+    let Ok((mut transform, mut projection)) = game_camera.get_single_mut() else { return };
+
+    let window = windows.single();
+    let cursor = window.cursor_position();
 
     for event in scroll.read() {
-        match event.unit {
-            MouseScrollUnit::Line => {
-                projection.scale *= 1.0 - event.y * 0.1;
-            }
-            MouseScrollUnit::Pixel => {
-                projection.scale *= 1.0 - event.y * 0.001;
-            }
+        let zoom_amount = match event.unit {
+            MouseScrollUnit::Line => event.y * 0.1,
+            MouseScrollUnit::Pixel => event.y * 0.001
+        };
+
+        let previous_scale = projection.scale;
+
+        projection.scale *= 1.0 - zoom_amount;
+        projection.scale = projection.scale.clamp(0.2, 1.5);
+
+        if zoom_amount < 0.0 || (previous_scale - projection.scale).abs() < 0.001 {
+            continue;
         }
 
-        projection.scale = projection.scale.clamp(0.2, 1.5);
+        let Some(cursor) = cursor else { continue };
+
+        let wolrd_pos = cursor_to_world_pos(cursor, window.size());
+        let translation = Vec2::new(-wolrd_pos.x, wolrd_pos.y) * zoom_amount * projection.scale;
+        
+        move_camera(&mut transform, &translation);
     }
 }
 
@@ -140,6 +155,7 @@ impl Plugin for GameArenaPlugin {
             .add_event::<GameArenaClickedEvent>()
 
             .add_systems(Startup, init)
+
             .add_systems(Update, handle_scroll)
 
             .add_systems(Update, game_arena_clicked_system

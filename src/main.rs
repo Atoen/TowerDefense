@@ -1,7 +1,5 @@
 use std::fmt::Debug;
-use std::ops::Add;
 
-use bevy::app::PluginGroupBuilder;
 use bevy::core_pipeline::bloom::BloomSettings;
 use bevy::input::common_conditions::input_just_pressed;
 use bevy::prelude::*;
@@ -12,27 +10,12 @@ use bevy::render::settings::{Backends, RenderCreation, WgpuSettings};
 use bevy::sprite::{Anchor, MaterialMesh2dBundle, Mesh2dHandle};
 use bevy::window::PrimaryWindow;
 use bevy_framepace::{FramepaceSettings, Limiter};
-use bevy_prng::{ChaCha8Rng, WyRand};
+use bevy_prng::ChaCha8Rng;
 use bevy_rand::plugin::EntropyPlugin;
-use button::Button;
-use components::turrets::Target;
-use picking_core::PickSet;
-use strum::{EnumCount, IntoEnumIterator};
-use strum_macros::{Display, EnumCount, EnumIter, IntoStaticStr};
-use systems::turrets::*;
-use bevy_lunex::{lunex_picking, prelude::*, rendered_texture_picking};
-use bevy_mod_picking::prelude::*;
-
-const ARROW_SPRITE: &str = "arrow.png";
-const ARROW_SIZE: (f32, f32) = (50., 50.);
-
-const BULLET_SPRITE: &str = "bullet.png";
-const LASER_BEAM_SPRITE: &str = "laser_beam.png";
-const RAIL_GUN_SPRITE: &str = "rail_gun.png";
-const RAIL_GUN_BEAM_SPRITE: &str = "rail_gun_beam.png";
-const CURSOR_SHEET: &str = "cursor.png"; 
-
-const EXPLOSION_LEN: usize = 16;
+use bevy_tweening::TweeningPlugin;
+use strum::IntoEnumIterator;
+use strum_macros::{Display, EnumIter};
+use bevy_lunex::prelude::*;
 
 const GRID_CELL_SIZE: u32 = 50;
 const GRID_WIDTH: u32 = 40;
@@ -60,23 +43,23 @@ use turrets::*;
 mod game;
 use game::*;
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Display, EnumIter, EnumCount)]
-pub enum TurretType {
-    #[default] 
-    PulseBlaster,   // ✔
-    IonCannon,      // ✔
-    SwarmTurret,    // ✔
-    PlasmaRay,      // ❌
-    RailGun,        // ❌
-    CryoGenerator,  // ✔
-    Tesla,          // ✔
-    SeekerLauncher, // ✔
-    AcidSprayer,    // ✔ 
-    FireThrower,    // ✔
-    Sentinel        // ❌
-}
+// #[derive(Debug, Default, Clone, PartialEq, Eq, Display, EnumIter, EnumCount)]
+// pub enum TurretType {
+//     #[default] 
+//     PulseBlaster,   // ✔
+//     IonCannon,      // ✔
+//     SwarmTurret,    // ✔
+//     PlasmaRay,      // ❌
+//     RailGun,        // ❌
+//     CryoGenerator,  // ✔
+//     Tesla,          // ✔
+//     SeekerLauncher, // ✔
+//     AcidSprayer,    // ✔ 
+//     FireThrower,    // ✔
+//     Sentinel        // ❌
+// }
 
-pub struct SelectedWeapon(pub Option<TurretType>);
+// pub struct SelectedWeapon(pub Option<TurretType>);
 
 #[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash, Display)]
 pub enum PausedState {
@@ -101,14 +84,14 @@ pub struct WinSize {
 struct FirstPassImageHandle(Handle<Image>);
 
 
-#[derive(Resource)]
-pub struct GameTextures {
-    pub arrow: Handle<Image>,
-    pub rail_gun: Handle<Image>,
-    pub bullet: Handle<Image>,
-    pub laser_beam: Handle<Image>,
-    pub rail_gun_beam: Handle<Image>,
-}
+// #[derive(Resource)]
+// pub struct GameTextures {
+//     pub arrow: Handle<Image>,
+//     pub rail_gun: Handle<Image>,
+//     pub bullet: Handle<Image>,
+//     pub laser_beam: Handle<Image>,
+//     pub rail_gun_beam: Handle<Image>,
+// }
 
 fn main() {
     #[cfg(not(target_arch = "wasm32"))]
@@ -137,6 +120,7 @@ fn main() {
         .add_plugins(UtilPlugin)
         .add_plugins(ComponentPlugin)
         .add_plugins(RoutePlugin)
+        .add_plugins(TweeningPlugin)
         .add_plugins(GamePlugin)
         .add_systems(Startup, setup)
         // .add_systems(Update, rotator_system)
@@ -164,13 +148,12 @@ fn main() {
 }
 
 fn setup(
-    mut commands: Commands,
     asset_server: Res<AssetServer>,
-    mut settings: ResMut<FramepaceSettings>,
     query: Query<&Window, With<PrimaryWindow>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut images: ResMut<Assets<Image>>
+    mut commands: Commands,
+    mut settings: ResMut<FramepaceSettings>,
+    mut images: ResMut<Assets<Image>>,
+    texture_atlases: ResMut<Assets<TextureAtlasLayout>>
 ) {
 
     settings.limiter = Limiter::Auto;
@@ -219,59 +202,31 @@ fn setup(
     ));
 
     // commands.spawn((
-    //     Camera2dBundle {
-    //         camera: Camera {
-    //             order: -1,
-    //             target: image_handle.clone().into(),
-    //             clear_color: Color::NONE.into(),
+    //     SpriteBundle {
+    //         texture: asset_server.load(AssetPath::GRID_CELL),
+    //         sprite: Sprite {
+    //             custom_size: Some(Vec2::new((GRID_CELL_SIZE * GRID_WIDTH) as f32, (GRID_CELL_SIZE * GRID_HEIGHT) as f32)),
     //             ..default()
     //         },
     //         ..default()
     //     },
-    //     first_pass_layer.clone(),
-    //     GameCamera
-    // ));
-
-    // commands.spawn((
-    //     MaterialMesh2dBundle {
-    //         mesh: Mesh2dHandle(meshes.add(Rectangle { half_size: vec2(50.0, 20.0) })),
-    //         material: materials.add(Color::GREEN),
-    //         ..default()
+    //     ImageScaleMode::Tiled {
+    //         tile_x: true,
+    //         tile_y: true,
+    //         stretch_value: 1.0
     //     },
-    //     first_pass_layer.clone() 
+    //     first_pass_layer.clone(),
+    //     Grid
     // ));
 
-    commands.spawn((
-        SpriteBundle {
-            texture: asset_server.load(AssetPath::GRID_CELL),
-            sprite: Sprite {
-                custom_size: Some(Vec2::new((GRID_CELL_SIZE * GRID_WIDTH) as f32, (GRID_CELL_SIZE * GRID_HEIGHT) as f32)),
-                ..default()
-            },
-            ..default()
-        },
-        ImageScaleMode::Tiled {
-            tile_x: true,
-            tile_y: true,
-            stretch_value: 1.0
-        },
-        first_pass_layer.clone(),
-        Grid
-    ));
+    commands.insert_resource(GameTextures::load(&asset_server, texture_atlases));
+    commands.insert_resource(UiTextures::load(&asset_server));
 
     let win_size = WinSize { width: primary.width(), height: primary.height() };
     commands.insert_resource(win_size);
     
-    let game_textures = GameTextures {
-        arrow: asset_server.load(ARROW_SPRITE),
-        bullet: asset_server.load(BULLET_SPRITE),
-        laser_beam: asset_server.load(LASER_BEAM_SPRITE),
-        rail_gun: asset_server.load(RAIL_GUN_SPRITE),
-        rail_gun_beam: asset_server.load(RAIL_GUN_BEAM_SPRITE)
-    };
-    
-    commands.insert_resource(game_textures);
     commands.insert_resource(GameCash(10000));
+
     commands.spawn((
         MainUi,
         BloomSettings::NATURAL,
@@ -311,18 +266,6 @@ fn setup(
             // }
         );
     });
-
-    // commands.spawn(
-    //     MaterialMesh2dBundle {
-    //         mesh: Mesh2dHandle(meshes.add(Circle {radius: 10.0})),
-    //         material: materials.add(Color::RED.with_alpha(0.5)),
-    //         transform: Transform {
-    //             translation: Vec3::ZERO.with_z(50.0),
-    //             ..default()
-    //         },
-    //         ..default()
-    //     }
-    // );
 
     commands.spawn(MainMenuRoute);
 }
