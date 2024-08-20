@@ -7,6 +7,8 @@ impl AssetPath {
     const CURSOR: &'static str = "images/cursor.png";
     const PAUSE: &'static str = "images/pause_icon.png";
 
+    const TURRET_RING_SHEET: &'static str = "images/turret_ring_sheet.png";
+
     const ACID_SPRAYER: &'static str = "turrets/AcidSprayer.png";
     const PLASMA_RAY: &'static str = "turrets/PlasmaRay.png";
     const PULSE_BLASTER: &'static str = "turrets/PulseBlaster.png";
@@ -23,6 +25,13 @@ impl AssetPath {
     const MINE_SHEET: &'static str = "images/mine_sheet.png";
     const BLADES_BIG: &'static str = "images/blade_big.png";
     const BLADES_SMALL: &'static str = "images/blade_small.png";
+
+    const BULLET: &'static str = "images/bullet.png";
+    const CORE: &'static str = "images/core.png";
+    const PORTAL: &'static str = "images/portal.png";
+
+    const PATH_DOT: &'static str = "images/path_dot.png";
+    const PATH_ALIEN: &'static str = "images/path_alien.png";
 }
 
 #[derive(Resource)]
@@ -44,6 +53,7 @@ impl UiTextures {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Resource)]
 pub struct GameTextures {
     pub selected_cell: Handle<Image>,
@@ -53,10 +63,20 @@ pub struct GameTextures {
     pub blades_big: Handle<Image>,
     pub blades_small: Handle<Image>,
 
+    pub core: Handle<Image>,
+    pub portal: Handle<Image>,
+
+    pub turret_ring_texture: Handle<Image>,
+    pub turret_ring_atlas: Handle<TextureAtlasLayout>,
+
     pub acid_sprayer: Handle<Image>,
     pub plasma_ray: Handle<Image>,
     pub pulse_blaster: Handle<Image>,
-    pub rail_gun: Handle<Image>
+    pub rail_gun: Handle<Image>,
+    pub bullet: Handle<Image>,
+
+    pub path_dot: Handle<Image>,
+    pub path_alien: Handle<Image>,
 }
 
 impl GameTextures {
@@ -66,6 +86,10 @@ impl GameTextures {
         let mine_sheet = TextureAtlasLayout::from_grid(UVec2::new(100, 100), 2, 1, None, None);
         let mine_layout = texture_atlases.add(mine_sheet);
 
+        let turret_ring_sheet_handle = asset_server.load(AssetPath::TURRET_RING_SHEET);
+        let turret_ring_sheet = TextureAtlasLayout::from_grid(UVec2::new(100, 100), 5, 1, None, None);
+        let turret_ring_layout = texture_atlases.add(turret_ring_sheet);
+
         Self {
             selected_cell: asset_server.load(AssetPath::SELECTED_CELL),
             module: asset_server.load(AssetPath::MODULE),
@@ -74,10 +98,21 @@ impl GameTextures {
             mine_atlas: mine_layout,
             mine_texture: mine_sheet_handle,
 
+            core: asset_server.load(AssetPath::CORE),
+            portal: asset_server.load(AssetPath::PORTAL),
+
+            turret_ring_atlas: turret_ring_layout,
+            turret_ring_texture: turret_ring_sheet_handle,
+
             acid_sprayer: asset_server.load(AssetPath::ACID_SPRAYER),
             plasma_ray: asset_server.load(AssetPath::PLASMA_RAY),
             pulse_blaster: asset_server.load(AssetPath::PULSE_BLASTER),
-            rail_gun: asset_server.load(AssetPath::RAIL_GUN)
+            rail_gun: asset_server.load(AssetPath::RAIL_GUN),
+
+            bullet: asset_server.load(AssetPath::BULLET),
+
+            path_dot: asset_server.load(AssetPath::PATH_DOT),
+            path_alien: asset_server.load(AssetPath::PATH_ALIEN),
         }
     }
 }

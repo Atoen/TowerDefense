@@ -1,5 +1,11 @@
 // use crate::*;
 
+// #[derive(Component, Default)]
+// pub struct Target {
+//     pub pos: Vec3
+// }
+
+
 // use crate::TurretType;
 
 // #[derive(Component)]
@@ -145,11 +151,6 @@
 // #[derive(Component)]
 // pub struct AoEAttack {
 //     pub radius: f32,
-//     pub pos: Vec3
-// }
-
-// #[derive(Component)]
-// pub struct Target {
 //     pub pos: Vec3
 // }
 

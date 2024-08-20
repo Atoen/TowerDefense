@@ -1,71 +1,80 @@
+use bevy::ecs::component::StorageType;
+
 use crate::*;
 
-#[derive(Component, Debug, Default, Clone, PartialEq)]
+#[derive(Debug)]
 pub struct GameRoute;
 
-fn build_route(
-    mut commands: Commands,
-    query: Query<Entity, Added<GameRoute>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-    ui_textures: Res<UiTextures>,
-    first_pass_handle: Res<FirstPassImageHandle>
-) {
-    for route_entity in &query {        
-        commands.entity(route_entity).insert(
-            SpatialBundle::default()
-        ).with_children(|route| {
+impl Component for GameRoute {
+    const STORAGE_TYPE: StorageType = StorageType::Table;
 
-            route.spawn((
-                UiTreeBundle::<MainUi>::from(UiTree::new2d("Game")),
-                MovableByCamera,
-                GameLayout
-            )).with_children(|ui| {
-    
-                let root = UiLink::<MainUi>::path("Root");
-                ui.spawn((
-                    root.clone(),
-                    UiLayout::window_full().pack::<Base>()
-                ));
-    
-                ui.spawn((
-                    root.add("Background"),
-                    UiLayout::solid().size((1920.0, 1080.0)).scaling(Scaling::Fill).pack::<Base>(),
-                    Pickable::IGNORE,
-                    UiImage2dBundle {
-                        texture: ui_textures.nebula.clone(),
-                        ..default()
-                    }
-                ));
+    fn register_component_hooks(_hooks: &mut bevy::ecs::component::ComponentHooks) {
+        _hooks.on_add(|mut world, entity, _| {
 
-                ui.spawn((
-                    root.add("Bottom Row/Background"),
-                    UiLayout::window().y(Rl(100.0)).size((Rl(100.0), 100.)).anchor(Anchor::BottomLeft).pack::<Base>(),
-                    UiMaterial2dBundle {
-                        material: materials.add(Color::BLACK.with_alpha(0.7)),
-                        ..default()
-                    }
-                ));
+            let material = world
+                .resource_mut::<Assets<ColorMaterial>>()
+                .add(Color::BLACK.with_alpha(0.7));
+        
+            let nebula = world.resource::<UiTextures>().nebula.clone();
+            let render_target = world.resource::<RenderTarget>().0.clone();
+            
+            let mut commands = world.commands();
+        
+            commands.entity(entity).insert(
+                SpatialBundle::default()
+            ).with_children(|route| {
+                route.spawn((
+                    UiTreeBundle::<MainUi>::from(UiTree::new2d("Game")),
+                    MovableByCamera,
+                    GameLayout
+                )).with_children(|ui| {
+        
+                    let root = UiLink::<MainUi>::path("Root");
+                    ui.spawn((
+                        root.clone(),
+                        UiLayout::window_full().pack::<Base>()
+                    ));
+        
+                    ui.spawn((
+                        root.add("Background"),
+                        UiLayout::solid().size((1920.0, 1080.0)).scaling(Scaling::Fill).pack::<Base>(),
+                        Pickable::IGNORE,
+                        UiImage2dBundle {
+                            texture: nebula,
+                            ..default()
+                        }
+                    ));
     
-                ui.spawn((
-                    root.add("Top Row"),
-                    UiLayout::window().size((Rl(100.0), 50.0)).pack::<Base>(),
-                    GameStatus,
-                    Pickable::IGNORE
-                ));
-                    
-                ui.spawn((
-                    root.add("Bottom Row"),
-                    UiLayout::window().y(Rl(100.0)).size((Rl(100.0), 100.0)).anchor(Anchor::BottomLeft).pack::<Base>(),
-                    WeaponSelector
-                ));            
-
-                ui.spawn((
-                    root.add("Game Arena"),
-                    UiLayout::solid().size((1920.0, 1080.0)).scaling(Scaling::Fill).pack::<Base>(),
-                    UiImage2dBundle::from(first_pass_handle.0.clone()),
-                    GameArena,
-                    UiClickEmitter::SELF
-                ));
+                    ui.spawn((
+                        root.add("Bottom Row/Background"),
+                        UiLayout::window().y(Rl(100.0)).size((Rl(100.0), 100.)).anchor(Anchor::BottomLeft).pack::<Base>(),
+                        UiMaterial2dBundle {
+                            material,
+                            ..default()
+                        }
+                    ));
+        
+                    ui.spawn((
+                        root.add("Top Row"),
+                        UiLayout::window().size((Rl(100.0), 50.0)).pack::<Base>(),
+                        GameStatus,
+                        Pickable::IGNORE
+                    ));
+                        
+                    ui.spawn((
+                        root.add("Bottom Row"),
+                        UiLayout::window().y(Rl(100.0)).size((Rl(100.0), 100.0)).anchor(Anchor::BottomLeft).pack::<Base>(),
+                        WeaponSelector
+                    ));            
+    
+                    ui.spawn((
+                        root.add("Game Arena"),
+                        UiLayout::solid().size((1920.0, 1080.0)).scaling(Scaling::Fill).pack::<Base>(),
+                        UiImage2dBundle::from(render_target),
+                        GameArena,
+                        UiClickEmitter::SELF
+                    ));
+                });
             });
         });
     }
@@ -118,8 +127,6 @@ pub struct GameLayoutPlugin;
 impl Plugin for GameLayoutPlugin {
     fn build(&self, app: &mut App) {
         app
-            .add_systems(Update, build_route
-                .before(UiSystems::Compute))
 
             .add_systems(Update, build_info_display_system
                 .run_if(on_event::<BuildableSelecedEvent>()))

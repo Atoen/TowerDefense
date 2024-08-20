@@ -1,4 +1,5 @@
 use components::turrets::*;
+use game::GameLayerOrder;
 
 use crate::*;
 
@@ -54,7 +55,7 @@ fn spawn_consumable(
                 SpriteBundle {
                     texture: game_textures.mine_texture.clone(),
                     transform: Transform {
-                        translation: cell.world_pos().with_z(9.0),
+                        translation: cell.world_pos().on(GameLayer::STANDALONE),
                         scale: Vec3::splat(0.3),
                         ..default()
                     },
@@ -62,9 +63,9 @@ fn spawn_consumable(
                 },
                 ConstantRotation { speed: -std::f32::consts::PI / 16.0 },
                 TextureAtlas {
-                            layout: game_textures.mine_atlas.clone(),
-                            index: 1,
-                        },
+                    layout: game_textures.mine_atlas.clone(),
+                    index: 1,
+                },
                 ProximityMine {
                     on_timer: Timer::from_seconds(0.1, TimerMode::Once),
                     off_timer: Timer::from_seconds(2.0, TimerMode::Once),
@@ -81,13 +82,14 @@ fn spawn_consumable(
             let parent = commands.spawn((
                 SpatialBundle {
                     transform: Transform {
-                        translation: cell.world_pos().with_z(9.0),
+                        translation: cell.world_pos().on(GameLayer::STANDALONE),
                         scale: Vec3::splat(0.4),
                         ..default()
                     },
                     ..default()
                 },
                 RotorBlades,
+                RenderLayers::layer(1)
             )).id();
 
             commands.spawn((
@@ -100,7 +102,7 @@ fn spawn_consumable(
                     ..default()
                 },
                 ConstantRotation { speed: std::f32::consts::PI },
-                RenderLayers::layer(1),
+                RenderLayers::layer(1)
             )).set_parent(parent);
 
             commands.spawn((
@@ -133,27 +135,49 @@ fn spawn_turret(
     let (entity, price) = match turret {
         Turret::PulseBlaster => {
 
+            let base_entity = commands.spawn((
+                SpriteBundle {
+                    texture: game_textures.turret_ring_texture.clone(),
+                    transform: Transform {
+                        translation: cell.world_pos().on(GameLayer::TURRET_RING),
+                        ..default()
+                    },
+                    sprite: Sprite {
+                        color: Color::RED,
+                        custom_size: Some(Vec2::splat(50.0)),
+                        ..default()
+                    },
+                    ..default()
+                },
+                TextureAtlas {
+                    layout: game_textures.turret_ring_atlas.clone(),
+                    index: 3,
+                },
+                RenderLayers::layer(1)
+            )).id();
+
             let turret_entity = commands.spawn((
                 AttackDispersion(std::f32::consts::PI / 16.0),
                 AttackDelay(Timer::from_seconds(0.2, TimerMode::Repeating)),
                 TargetingTurret {
-                    targeting_radius: Some(200.0),
+                    targeting_radius: 200.0,
+                    mode: TargetingMode::Last,
                     ..default()
                 },
-
-                ProjectileSpawnOffset(Vec3 { x: 0.0, y: GRID_CELL_SIZE as f32 / 2.0, z: 0.0 }),
-                RotationSpeed(std::f32::consts::FRAC_PI_2),
+                ProjectileTurret,
+                ProjectileSpawnOffset::from_vec2(Vec2::new(0.0, GRID_CELL_SIZE as f32 / 2.0)),
+                RotationSpeed(std::f32::consts::TAU),
                 IdleRotation::default(),
                 SpriteBundle {
                     texture: game_textures.pulse_blaster.clone(),
                     transform: Transform {
-                        translation: cell.world_pos().with_z(10.0),
+                        translation: Vec3::ZERO.on(GameLayer::TURRET),
                         ..default()
                     },
                     ..default()
                 },
                 RenderLayers::layer(1)
-            )).id();
+            )).set_parent(base_entity).id();
 
             (turret_entity, 100)
         },

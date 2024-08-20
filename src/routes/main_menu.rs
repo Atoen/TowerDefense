@@ -1,68 +1,75 @@
+use bevy::ecs::component::StorageType;
+
 use crate::*;
 
-#[derive(Component, Debug, Default, Clone, PartialEq)]
+#[derive(Debug)]
 pub struct MainMenuRoute;
 
-fn build_route(
-    mut commands: Commands,
-    query: Query<Entity, Added<MainMenuRoute>>,
-    mut materials: ResMut<Assets<ColorMaterial>>
-) {
-    for route_entity in &query {
-        commands.entity(route_entity).insert(
-            SpatialBundle::default()
-        ).with_children(|route| {
+impl Component for MainMenuRoute {
+    const STORAGE_TYPE: StorageType = StorageType::Table;
 
-            route.spawn((
-                UiTreeBundle::<MainUi>::from(UiTree::new2d("Main Menu")),
-                MovableByCamera
-            )).with_children(|ui| {
+    fn register_component_hooks(_hooks: &mut bevy::ecs::component::ComponentHooks) {
+        _hooks.on_add(|mut world, entity, _| {
 
-                let root = UiLink::<MainUi>::path("Root");
-                ui.spawn((
-                    root.clone(),
-                    UiLayout::window_full().pack::<Base>()
-                ));
+            let material = world
+                .resource_mut::<Assets<ColorMaterial>>()
+                .add(Color::GRAY_900);
+            
+            let mut commands = world.commands();
 
-                ui.spawn((
-                    root.add("Background"),
-                    UiLayout::solid().size((1920.0, 1080.0)).scaling(Scaling::Fill).pack::<Base>(),
-                    UiMaterial2dBundle {
-                        material: materials.add(Color::GRAY_900),
-                        ..default()
+            commands.entity(entity).insert(
+                SpatialBundle::default()
+            ).with_children(|route| {
+
+                route.spawn((
+                    UiTreeBundle::<MainUi>::from(UiTree::new2d("Main Menu")),
+                    MovableByCamera
+                )).with_children(|ui| {
+
+                    let root = UiLink::<MainUi>::path("Root");
+                    ui.spawn((
+                        root.clone(),
+                        UiLayout::window_full().pack::<Base>()
+                    ));
+    
+                    ui.spawn((
+                        root.add("Background"),
+                        UiLayout::solid().size((1920.0, 1080.0)).scaling(Scaling::Fill).pack::<Base>(),
+                        UiMaterial2dBundle {
+                            material,
+                            ..default()
+                        }
+                    ));
+    
+                    let board = root.add("Solid");
+                    ui.spawn((
+                        board.clone(),
+                        UiLayout::solid().size((1.0, 2.5)).align_x(1.0).pack::<Base>(),
+                    ));
+    
+                    let list = board.add("List");
+                    ui.spawn((
+                        list.clone(),
+                        UiLayout::window().pos(Rl(15.0)).size(Rl((80.0, 34.0))).pack::<Base>()
+                    ));
+    
+                    let gap = 3.0;
+                    let size = 14.0;
+                    let mut offset = 0.0;
+    
+                    for button_type in MainMenuButton::iter() {
+                        ui.spawn((
+                            list.add(button_type.str()),
+                            button_type.clone(),
+                            UiLayout::window().y(Rl(offset)).size(Rl((100.0, size))).pack::<Base>(),
+                            MenuButton {
+                                text: button_type.str()
+                            },
+                        ));
+    
+                        offset += gap + size;
                     }
-                ));
-
-                let board = root.add("Solid");
-                ui.spawn((
-                    board.clone(),
-                    UiLayout::solid().size((1.0, 2.5)).align_x(1.0).pack::<Base>(),
-                ));
-
-                let list = board.add("List");
-                ui.spawn((
-                    list.clone(),
-                    UiLayout::window().pos(Rl(15.0)).size(Rl((80.0, 34.0))).pack::<Base>()
-                ));
-
-                let gap = 3.0;
-                let size = 14.0;
-                let mut offset = 0.0;
-
-                for button_type in MainMenuButton::iter() {
-                    let button = ui.spawn((
-                        list.add(button_type.str()),
-                        button_type.clone(),
-                        UiLayout::window().y(Rl(offset)).size(Rl((100.0, size))).pack::<Base>(),
-                        MenuButton {
-                            text: button_type.str()
-                        },
-                    )).id();
-
-                    // writer.send(UiElementAdded::new(&mut commands));
-
-                    offset += gap + size;
-                }
+                });
             });
         });
     }
@@ -92,16 +99,25 @@ fn main_menu_button_clicked_system(
     mut commands: Commands,
     main_menu_route: Query<Entity, With<MainMenuRoute>>,
     query: Query<&MainMenuButton, With<MenuButton>>,
+    mut next_state: ResMut<NextState<AppState>>,
     mut exit: EventWriter<AppExit>,
 ) {
     for event in events.read() {
         if let Ok(button) = query.get(event.target) {
+
+            let Ok(main_menu_route) = main_menu_route.get_single() else {
+                error!("Unable to find MainMenuRoute component!");
+                return
+            };
+
             info!("Pressed: {}", button.str());
 
             match button {
                 MainMenuButton::NewGame => { 
-                    commands.entity(main_menu_route.single()).insert(DespawnAfterFrames::ROUTE_NAVIGATION);
+                    commands.entity(main_menu_route).insert(DespawnAfterFrames::ONE);
                     commands.spawn(GameRoute);
+
+                    next_state.set(AppState::InGame);
                 },
                 MainMenuButton::QuitGame => {
                      exit.send(AppExit::Success);
@@ -116,10 +132,8 @@ pub struct MainMenuRoutePlugin;
 impl Plugin for MainMenuRoutePlugin {
     fn build(&self, app: &mut App) {
         app
-            .add_systems(PreUpdate, build_route
-                .before(UiSystems::Compute))
             .add_systems(PostUpdate, main_menu_button_clicked_system
-                .distributive_run_if(input_just_pressed(MouseButton::Left))
+                .run_if(input_just_pressed(MouseButton::Left))
             );
     }
 }

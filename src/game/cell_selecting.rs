@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use bevy_tweening::{lens::TransformScaleLens, Animator, EaseFunction, RepeatCount, RepeatStrategy, Tween};
+use game::GameLayerOrder;
 
 use crate::*;
 
@@ -23,11 +24,13 @@ fn highlight_clicked_cell_system(
             
             if let Ok((entity, mut transform)) = query.get_single_mut() {
 
-                let pos = cell_to_world_pos(&cell_pos).with_z(10.0);
+                let pos = cell_to_world_pos(&cell_pos).on(GameLayer::SELECTED_CELL);
                 if transform.translation == pos && selected_buildable.0.is_none() {
                     commands.entity(entity).despawn();
+                    debug!("Deselected cell");
                 } else {
                     transform.translation = pos;
+                    debug!("Selected cell at {:?}", cell_pos);
                 }
             } else {
 
@@ -45,7 +48,7 @@ fn highlight_clicked_cell_system(
                     SpriteBundle {
                         texture: game_textures.selected_cell.clone(),
                         transform: Transform {
-                            translation: cell_to_world_pos(&cell_pos).with_z(10.0),
+                            translation: cell_to_world_pos(&cell_pos).on(GameLayer::SELECTED_CELL),
                             ..default()
                         },
                         ..default()
@@ -54,9 +57,13 @@ fn highlight_clicked_cell_system(
                     SelectedCellMarker,
                     RenderLayers::layer(1)
                 ));
+
+                debug!("Selected cell at {:?}", cell_pos);
             }
         } else if let Ok((entity, _)) = query.get_single_mut() {
             commands.entity(entity).despawn();
+
+            debug!("Removed cell selection");
         }
     }
 }
@@ -64,7 +71,8 @@ fn highlight_clicked_cell_system(
 fn build_system(
     mut commands: Commands,
     mut reader: EventReader<GameCellClickedEvent>,
-    mut grid_data: ResMut<GameGrid>,
+    mut writer: EventWriter<PathChangedEvent>,
+    mut grid: ResMut<GameGrid>,
     selected_buildable: Res<SelectedBuildable>,
     game_textures: Res<GameTextures>
 ) {
@@ -72,36 +80,19 @@ fn build_system(
 
     for event in reader.read() {
         let Some(cell_pos) = event.0 else { continue };
-        let Some(cell) = grid_data.get_cell_mut(&cell_pos) else { continue };
 
         if buildable.is_module() {
-            if cell.is_empty() {
-                let module = commands.spawn((
-                    SpriteBundle {
-                        texture: game_textures.module.clone(),
-                        transform: Transform {
-                            translation: cell.world_pos().with_z(9.0),
-                            scale: Vec3::splat(0.5),
-                            ..default()
-                        },
-                        ..default()
-                    },
-                    RenderLayers::layer(1)
-                )).id();
-        
-                cell.set_standalone(StandaloneBuildable::Module, module);
-        
-                info!("Placed Module at {}", cell_pos);
-        
-            } else if let Some((entity, StandaloneBuildable::Module)) = cell.standalone_entity {
-                commands.entity(entity).despawn();
-                cell.remove_standalone();
-        
-                info!("Removed Module at {}", cell_pos);
+
+            let path_state = grid.try_place_module(&cell_pos, &mut commands, &game_textures);
+            if let PathState::Updated = path_state {
+                writer.send(PathChangedEvent);
             }
         }
     }
 }
+
+#[derive(Event)]
+pub struct PathChangedEvent;
 
 pub struct CellSelectionPlugin;
 impl Plugin for CellSelectionPlugin {
@@ -111,10 +102,13 @@ impl Plugin for CellSelectionPlugin {
             .init_resource::<GameGrid>()
             .init_resource::<SelectedCell>()
 
-            .add_systems(Update, build_system
-                .run_if(on_event::<GameCellClickedEvent>()))
+            .add_event::<PathChangedEvent>()
 
-            .add_systems(PreUpdate, highlight_clicked_cell_system
-                .run_if(on_event::<GameCellClickedEvent>()));
+            .add_systems(Update, (
+                build_system,
+                highlight_clicked_cell_system
+            ).run_if(in_state(AppState::InGame).and_then(
+                on_event::<GameCellClickedEvent>()
+            )));
     }
 }

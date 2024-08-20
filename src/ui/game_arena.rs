@@ -8,29 +8,11 @@ pub struct GameArena;
 #[derive(Event)]
 pub struct GameArenaClickedEvent(pub Vec2);
 
-#[derive(Component)]
-struct Pointer;
-
 #[derive(Resource, Default)]
 struct InputDragData {
     drag_distance: Vec2,
     input_held: bool,
     is_dragging: bool
-}
-
-fn init(
-    mut commands: Commands,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-) {
-    commands.spawn((
-        Pointer,
-        MaterialMesh2dBundle {
-            mesh: Mesh2dHandle(meshes.add(Circle {radius: 20.0})),
-            material: materials.add(Color::WHITE),
-            ..default()
-        }
-    ));
 }
 
 const DRAG_DISTANCE_THRESHOLD: f32 = 10.0;
@@ -42,18 +24,22 @@ fn game_arena_clicked_system(
     mut motion_events: EventReader<MouseMotion>,
     mut drag_data: ResMut<InputDragData>,
     mut game_camera: Query<(&mut Transform, &OrthographicProjection), With<GameCamera>>,
-    mut writer: EventWriter<GameArenaClickedEvent>
+    mut writer: EventWriter<GameArenaClickedEvent>,
+    game_arena: Query<Option<&PickingInteraction>, With<GameArena>>
 ) {
+
+    let Ok(Some(PickingInteraction::Hovered) | Some(PickingInteraction::Pressed)) = game_arena.get_single() else { 
+        drag_data.input_held = false;
+        drag_data.is_dragging = false;
+        return
+     };
+
     let window = windows.single();
     let Some(cursor_pos) = window.cursor_position() else { 
         drag_data.input_held = false;
         drag_data.is_dragging = false;
         return;
     };
-
-    if window.size().y - cursor_pos.y < 100.0 {
-        return;
-    }
 
     let Ok((mut transform, projection)) = game_camera.get_single_mut() else { return };
 
@@ -129,6 +115,8 @@ fn handle_scroll(
         projection.scale *= 1.0 - zoom_amount;
         projection.scale = projection.scale.clamp(0.2, 1.5);
 
+        debug!("Zoom scale: {}", projection.scale);
+
         if zoom_amount < 0.0 || (previous_scale - projection.scale).abs() < 0.001 {
             continue;
         }
@@ -142,7 +130,7 @@ fn handle_scroll(
     }
 }
 
-fn game_arena_exists(query: Query<Entity, With<GameArena>>) -> bool {
+fn game_arena_exists(query: Query<(), With<GameArena>>) -> bool {
     !query.is_empty()
 }
 
@@ -154,11 +142,11 @@ impl Plugin for GameArenaPlugin {
 
             .add_event::<GameArenaClickedEvent>()
 
-            .add_systems(Startup, init)
-
             .add_systems(Update, handle_scroll)
 
             .add_systems(Update, game_arena_clicked_system
-                .run_if(game_arena_exists));
+                .run_if(in_state(AppState::InGame).and_then(
+                    game_arena_exists
+            )));
     }
 }

@@ -1,77 +1,83 @@
+use bevy::ecs::component::StorageType;
 use button::Button;
 
 use crate::*;
 
-#[derive(Component, Debug, Default, Clone, PartialEq)]
+#[derive(Debug)]
 pub struct WeaponPage;
 
-#[derive(Component, Debug, Default, Clone, PartialEq)]
-struct WeaponPageUi;
 
-fn build_component(
-    mut commands: Commands,
-    query: Query<Entity, Added<WeaponPage>>,
-    selected_page: Res<State<PageState>>,
-) {
-    for entity in &query {
-        commands.entity(entity).insert(
-            UiTreeBundle::<WeaponPageUi>::from(UiTree::new2d("Weapon Page"))
-        ).with_children(|ui| {
-            let elements_to_display: Vec<Buildable> = match selected_page.get() {
-                PageState::Standard => vec![
-                    Turret::PulseBlaster,
-                    Turret::IonCannon,
-                    Turret::SwarmTurret,
-                    Turret::PlasmaRay,
-                    Turret::CryoGenerator,
-                    Turret::Tesla,
-                    Turret::SeekerLauncher,
-                    Turret::AcidSprayer,
-                    Turret::FireThrower
-                ].into_iter().map(Buildable::Turret).collect(),
-
-                PageState::Advanced => vec![
-                    Turret::Sentinel,
-                    Turret::CyberOro,
-                    Turret::RailGun
-                ].into_iter().map(Buildable::Turret).collect(),
-
-                PageState::Building => vec![
-                    StandaloneBuildable::Module,
-                    StandaloneBuildable::Consumable(Consumable::ProximityMine),
-                    StandaloneBuildable::Consumable(Consumable::RotorBlades)
-                ].into_iter().map(Buildable::Standalone).collect()
-            };
-
-            let width = Ab(90.0);
-            let height = Ab(30.0);
+impl Component for WeaponPage {
+    const STORAGE_TYPE: StorageType = StorageType::Table;
+    
+    fn register_component_hooks(_hooks: &mut bevy::ecs::component::ComponentHooks) {
+        _hooks.on_add(|mut world, entity, _| {
         
-            let spacing = Ab(30.0);
-            let fragments = elements_to_display.len();
-            let total_width = width * fragments as f32 + spacing * (fragments - 1) as f32;
+            let page = world.resource::<State<PageState>>().get().clone();
+
+            let mut commands = world.commands();
+
+            commands.entity(entity).insert(
+                UiTreeBundle::<WeaponPageUi>::from(UiTree::new2d("Weapon Page"))
+            ).with_children(|ui| {
+                let elements_to_display: Vec<Buildable> = match page {
+                    PageState::Standard => vec![
+                        Turret::PulseBlaster,
+                        Turret::IonCannon,
+                        Turret::SwarmTurret,
+                        Turret::PlasmaRay,
+                        Turret::CryoGenerator,
+                        Turret::Tesla,
+                        Turret::SeekerLauncher,
+                        Turret::AcidSprayer,
+                        Turret::FireThrower
+                    ].into_iter().map(Buildable::Turret).collect(),
+    
+                    PageState::Advanced => vec![
+                        Turret::Sentinel,
+                        Turret::CyberOro,
+                        Turret::RailGun
+                    ].into_iter().map(Buildable::Turret).collect(),
+    
+                    PageState::Building => vec![
+                        StandaloneBuildable::Module,
+                        StandaloneBuildable::Consumable(Consumable::ProximityMine),
+                        StandaloneBuildable::Consumable(Consumable::RotorBlades)
+                    ].into_iter().map(Buildable::Standalone).collect()
+                };
+    
+                let width = Ab(90.0);
+                let height = Ab(30.0);
             
-            let initial_x = -total_width * 0.5 + Rw(50.0);
-            let y = Rh(50.0) - height * 0.5;
-
-            let list = UiLink::<WeaponPageUi>::path("List");
-            for (index, element) in elements_to_display.iter().enumerate() {
-
-                let x = initial_x + (width + spacing) * index as f32;
-
-                ui.spawn((
-                    list.add(element.to_string()),
-                    UiLayout::window().pos((x, y)).size((width, height)).pack::<Base>(),
-                    Button {
-                        hover_enlarge: true,
-                        image: None,
-                        text: Some(element.to_string())
-                    },
-                    BuildableButton(*element)
-                ));
-            }
+                let spacing = Ab(30.0);
+                let fragments = elements_to_display.len();
+                let total_width = width * fragments as f32 + spacing * (fragments - 1) as f32;
+                
+                let initial_x = -total_width * 0.5 + Rw(50.0);
+                let y = Rh(50.0) - height * 0.5;
+    
+                let list = UiLink::<WeaponPageUi>::path("List");
+                for (index, element) in elements_to_display.iter().enumerate() {
+    
+                    let x = initial_x + (width + spacing) * index as f32;
+    
+                    ui.spawn((
+                        list.add(element.to_string()),
+                        UiLayout::window().pos((x, y)).size((width, height)).pack::<Base>(),
+                        Button {
+                            hover_enlarge: true,
+                            image: None,
+                            text: Some(element.to_string())
+                        },
+                        BuildableButton(*element)
+                    ));
+                }
+            });
         });
     }
 }
+#[derive(Component, Debug, Default, Clone, PartialEq)]
+struct WeaponPageUi;
 
 #[derive(Event)]
 pub struct BuildableSelecedEvent;
@@ -100,8 +106,6 @@ impl Plugin for WeaponPagePlugin {
     fn build(&self, app: &mut App) {
         app
             .add_event::<BuildableSelecedEvent>()
-
-            .add_systems(Update, build_component.before(UiSystems::Compute))
 
             .add_plugins(UiGenericPlugin::<WeaponPageUi>::new())
 

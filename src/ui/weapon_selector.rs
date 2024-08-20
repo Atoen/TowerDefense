@@ -1,62 +1,69 @@
+use bevy::ecs::component::StorageType;
 use bevy::input::mouse::MouseWheel;
 use button::Button;
 
-use crate::{WeaponPage, *};
+use crate::*;
 
-#[derive(Component, Debug, Default, Clone, PartialEq)]
+#[derive(Debug)]
 pub struct WeaponSelector;
 
-#[derive(Component, Debug, Default, Clone, PartialEq)]
-struct WeaponSelectorUi;
+impl Component for WeaponSelector {
+    const STORAGE_TYPE: StorageType = StorageType::Table;
 
-fn build_component(
-    mut commands: Commands,
-    query: Query<Entity, Added<WeaponSelector>>,
-    ui_textures: Res<UiTextures>
-) {
-    for entity in &query {
-        commands.entity(entity).insert(
-            UiTreeBundle::<WeaponSelectorUi>::from(UiTree::new2d("Weapon Selector"))
-        ).with_children(|ui| {
-            let row = UiLink::<WeaponSelectorUi>::path("Row");
-            ui.spawn((
-                row.clone(),
-                UiLayout::window_full().pack::<Base>()
-            ));
+    fn register_component_hooks(_hooks: &mut bevy::ecs::component::ComponentHooks) {
+        _hooks.on_add(|mut world, entity, _| {
 
-            ui.spawn((
-                row.add("Page"),
-                UiLayout::window()
-                    .pos((100.0, 0.0))
-                    .size((Rw(100.0) - Ab(200.0), Rh(100.0)))
-                    .pack::<Base>(),
-                WeaponPage
-            ));
+            let arrow_left = world.resource::<UiTextures>().arrow_left.clone();
+            let arrow_right = world.resource::<UiTextures>().arrow_right.clone();
 
-            ui.spawn((
-                row.add("Previous Page"),
-                UiLayout::window().pos((40.0, Rh(50.0))).size(40.0).anchor(Anchor::Center).pack::<Base>(),
-                Button {
-                    hover_enlarge: false,
-                    text: None,
-                    image: Some(ui_textures.arrow_left.clone())
-                },
-                PageNavigation::Previous
-            ));
+            let mut commands = world.commands();
 
-            ui.spawn((
-                row.add("Next Page"),
-                UiLayout::window().pos((Rw(100.0) - Ab(40.0), Rh(50.0))).size(40.0).anchor(Anchor::Center).pack::<Base>(),
-                Button {
-                    hover_enlarge: false,
-                    text: None,
-                    image: Some(ui_textures.arrow_right.clone())
-                },
-                PageNavigation::Next
-            ));
+            commands.entity(entity).insert(
+                UiTreeBundle::<WeaponSelectorUi>::from(UiTree::new2d("Weapon Selector"))
+            ).with_children(|ui| {
+                let row = UiLink::<WeaponSelectorUi>::path("Row");
+                ui.spawn((
+                    row.clone(),
+                    UiLayout::window_full().pack::<Base>()
+                ));
+    
+                ui.spawn((
+                    row.add("Page"),
+                    UiLayout::window()
+                        .pos((100.0, 0.0))
+                        .size((Rw(100.0) - Ab(200.0), Rh(100.0)))
+                        .pack::<Base>(),
+                    WeaponPage
+                ));
+    
+                ui.spawn((
+                    row.add("Previous Page"),
+                    UiLayout::window().pos((40.0, Rh(50.0))).size(40.0).anchor(Anchor::Center).pack::<Base>(),
+                    Button {
+                        hover_enlarge: false,
+                        text: None,
+                        image: Some(arrow_left)
+                    },
+                    PageNavigation::Previous
+                ));
+    
+                ui.spawn((
+                    row.add("Next Page"),
+                    UiLayout::window().pos((Rw(100.0) - Ab(40.0), Rh(50.0))).size(40.0).anchor(Anchor::Center).pack::<Base>(),
+                    Button {
+                        hover_enlarge: false,
+                        text: None,
+                        image: Some(arrow_right)
+                    },
+                    PageNavigation::Next
+                ));
+            });
         });
     }
 }
+
+#[derive(Component, Debug, Default, Clone, PartialEq)]
+struct WeaponSelectorUi;
 
 #[derive(Component, Clone, PartialEq, Display)]
 enum PageNavigation {
@@ -138,7 +145,7 @@ fn page_changed_system(
     let Ok(weapon_selector) = weapon_selector.get_single() else { return };
     let Ok(current_page) = current_page.get_single() else { return };
 
-    commands.entity(current_page).insert(DespawnAfterFrames::ROUTE_NAVIGATION);
+    commands.entity(current_page).insert(DespawnAfterFrames::TWO);
 
     let new_page = commands.spawn((
         UiLink::<WeaponSelectorUi>::path("Row/Page"),
@@ -161,7 +168,6 @@ impl Plugin for WaponSelectorPlugin {
             .add_plugins(UiGenericPlugin::<WeaponSelectorUi>::new())
 
             .add_systems(PostUpdate, handle_scroll)
-            .add_systems(Update, build_component.before(UiSystems::Compute))
 
             .add_systems(PostUpdate, page_navigation_button_clicked_system
                 .distributive_run_if(on_event::<UiClickEvent>())

@@ -3,22 +3,6 @@
 version = 3
 
 [[package]]
-name = "BevyGame"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "bevy_framepace",
- "bevy_lunex",
- "bevy_prng",
- "bevy_rand",
- "bevy_tweening",
- "rand",
- "rand_core",
- "strum",
- "strum_macros",
-]
-
-[[package]]
 name = "ab_glyph"
 version = "0.2.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -316,7 +300,6 @@ version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8e938630e9f472b1899c78ef84aa907081b23bad8333140e2295c620485b6ee7"
 dependencies = [
- "bevy_dylib",
  "bevy_internal",
 ]
 
@@ -522,15 +505,6 @@ dependencies = [
  "bevy_utils",
  "const-fnv1a-hash",
  "sysinfo",
-]
-
-[[package]]
-name = "bevy_dylib"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8494bf550eb30f570da1563217bcea25530cf29b35d35887ca6c2d76a411d00"
-dependencies = [
- "bevy_internal",
 ]
 
 [[package]]
@@ -3779,6 +3753,22 @@ dependencies = [
  "indexmap",
  "toml_datetime",
  "winnow 0.6.18",
+]
+
+[[package]]
+name = "tower_defense"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy_framepace",
+ "bevy_lunex",
+ "bevy_prng",
+ "bevy_rand",
+ "bevy_tweening",
+ "rand",
+ "rand_core",
+ "strum",
+ "strum_macros",
 ]
 
 [[package]]

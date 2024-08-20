@@ -1,56 +1,48 @@
-// use std::time::Duration;
-
-// use bevy::{color::Color, math::{Vec2, Vec3}, prelude::{Component, Entity}, time::{Timer, TimerMode}};
-// use bevy_rand::prelude::EntropyComponent;
-
-// use crate::TurretType;
+// use crate::*;
 
 // #[derive(Component)]
-// pub struct Turret(pub TurretType);
+// pub struct ProjectileTurret;
 
+// #[derive(Component, Default)]
+// pub struct TargetingTurret {
+//     pub rotation: f32,
+//     pub targeting_radius: Option<f32>,
+//     pub has_target: bool,
+// }
 
-use crate::*;
+// #[derive(Component)]
+// pub struct AttackDispersion(pub f32);
 
-#[derive(Component, Default)]
-pub struct TargetingTurret {
-    pub targeting_radius: Option<f32>,
-    pub rotation: f32,
-    pub has_target: bool
-}
+// #[derive(Component)]
+// pub struct ProjectileSpawnOffset(pub Vec3);
 
-#[derive(Component)]
-pub struct AttackDispersion(pub f32);
+// #[derive(Component)]
+// pub struct RotationSpeed(pub f32);
 
-#[derive(Component)]
-pub struct ProjectileSpawnOffset(pub Vec3);
+// #[derive(Component)]
+// pub struct AttackDelay(pub Timer);
 
-#[derive(Component)]
-pub struct RotationSpeed(pub f32);
+// #[derive(Component)]
+// pub struct PreciseAttack;
 
-#[derive(Component)]
-pub struct AttackDelay(pub Timer);
+// #[derive(Component)]
+// pub struct IdleRotation {
+//     pub idle_timer: Timer,
+//     pub rotation_timer: Timer,
+//     pub is_idle: bool,
+//     pub target_angle: f32
+// }
 
-#[derive(Component)]
-pub struct PreciseAttack;
-
-#[derive(Component)]
-pub struct IdleRotation {
-    pub idle_timer: Timer,
-    pub rotation_timer: Timer,
-    pub is_idle: bool,
-    pub target_angle: f32
-}
-
-impl Default for IdleRotation{
-    fn default() -> Self {
-        Self {
-            idle_timer: Timer::from_seconds(3., TimerMode::Once),
-            rotation_timer: Timer::from_seconds(2., TimerMode::Repeating),
-            target_angle: 0.,
-            is_idle: false
-        }
-    }
-}
+// impl Default for IdleRotation{
+//     fn default() -> Self {
+//         Self {
+//             idle_timer: Timer::from_seconds(3., TimerMode::Once),
+//             rotation_timer: Timer::from_seconds(2., TimerMode::Repeating),
+//             target_angle: 0.,
+//             is_idle: false
+//         }
+//     }
+// }
 
 
 // #[derive(Component)]

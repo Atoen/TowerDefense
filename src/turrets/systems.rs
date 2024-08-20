@@ -1,110 +1,139 @@
 // use bevy_rand::prelude::GlobalEntropy;
 // use rand::RngCore;
 
-// use crate::*;
+use rand_core::RngCore;
+use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};
+use bevy_rand::prelude::GlobalEntropy;
+use components::*;
 
-// pub fn move_target(
-//     mut target_query: Query<(&mut Transform, &mut Target)>,
-//     windows: Query<&Window, With<PrimaryWindow>>
-// ) {
-//     let (mut transform, mut target) = target_query.single_mut();
-//     let window = windows.single();
+use crate::*;
 
-//     if let Some(pos) = window.cursor_position() {
-//         let pos = cursor_to_world_pos(pos, window.size());
-
-//         target.pos = pos;
-//         transform.translation.x = pos.x;
-//         transform.translation.y = pos.y; 
-//     }
-// }
-
-// const PROJECTILE_SPEED: f32 = 300.0;
-// const TARGET_RADIUS: f32 = 20.0;
-// const DESPAWN_MARGIN: f32 = 200.0;
-
-// pub fn projectile_system(
-//     mut commands: Commands,
-//     time: Res<Time>,
-//     win_size: Res<WinSize>,
-//     mut projectiles: Query<(Entity, &mut Transform, &Projectile, Option<&LinearVelocity>, Option<&Explosive>), Without<Target>>,
-//     targets: Query<&Target>,
-// ) {
-//     let delta = time.delta_seconds();
-//     let target = targets.single();
-
-//     for (
-//         entity,
-//         mut transform,
-//         projectile,
-//         velocity,
-//         explosive
-//     ) in &mut projectiles {
-//         let speed = velocity.map_or(PROJECTILE_SPEED, |v| v.0);
-//         let current_angle = transform.rotation.to_euler(EulerRot::XYZ).2 + std::f32::consts::FRAC_PI_2;
-
-//         let velocity_vec = Vec3::new(current_angle.cos() * speed, current_angle.sin() * speed, 0.0);
-//         transform.translation += velocity_vec * delta;
-
-//         let distance = transform.translation.distance(target.pos);
-
-//         if distance < projectile.radius + TARGET_RADIUS {
-//             commands.entity(entity).despawn();
-//             if let Some(explosive) = explosive {
-//                 commands.spawn(
-//                     ExplosionToSpawn {
-//                         damage: explosive.damage,
-//                         radius: explosive.radius,
-//                         pos: transform.translation
-//                     }
-//                 );
-//             }
-
-//             continue;
-//         }
-
-//         if projectile.auto_despawn && (
-//                 transform.translation.y > win_size.height / 2.0 + DESPAWN_MARGIN ||
-//                 transform.translation.y < -win_size.height / 2.0 - DESPAWN_MARGIN || 
-//                 transform.translation.x > win_size.width / 2.0 + DESPAWN_MARGIN ||
-//                 transform.translation.x < -win_size.width / 2.0 - DESPAWN_MARGIN) {
-//             commands.entity(entity).despawn();
-//         }
-//     }
-// }
-
-// pub fn decaying_projectile_system(
+// pub fn spawn_target(
 //     mut commands: Commands,
 //     mut materials: ResMut<Assets<ColorMaterial>>,
-//     time: Res<Time>,
-//     mut projectiles: Query<(Entity, &mut Decaying, AnyOf<(&mut Sprite, &Handle<ColorMaterial>)>), With<Projectile>>
+//     mut meshes: ResMut<Assets<Mesh>>
 // ) {
-//     for (
-//         entity,
-//         mut decaying,
-//         sprite_or_material
-//     ) in &mut projectiles {
-//         decaying.decay_timer.tick(time.delta());
+//     commands.spawn((
+//         MaterialMesh2dBundle {
+//             mesh: Mesh2dHandle(meshes.add(Circle {radius: 20.0})),
+//             material: materials.add(Color::WHITE.with_alpha(0.9)),
+//             ..default()
+//         },
+//         Target::default(),
+//     ));
+// }
 
-//         if decaying.decay_type == DecayType::Transparency {
-//             let alpha = decaying.decay_timer.fraction_remaining();
-            
-//             match sprite_or_material {
-//                 (Some(mut sprite), None) => sprite.color.set_alpha(alpha),
-//                 (None, Some(handle)) => {
-//                     if let Some(material) = materials.get_mut(handle) {
-//                         material.color.set_alpha(alpha)
-//                     }
-//                 },
-//                 _ => ()
-//             }
-//         }
+// pub fn move_target(
+//     mut query: Query<(&mut Transform, &mut Target)>,
+//     mut reader: EventReader<GameCellClickedEvent>
+// ) {
+//     let Ok((mut transform, mut target)) = query.get_single_mut() else { return };
 
-//         if decaying.decay_timer.finished() {
-//             commands.entity(entity).despawn();
-//         }
+//     for event in reader.read() {
+//         let Some(cell_pos) = event.0 else { continue };
+//         let pos = cell_to_world_pos(&cell_pos).with_z(12.0);
+
+//         target.pos = pos;
+//         transform.translation = pos;
 //     }
 // }
+
+const PROJECTILE_SPEED: f32 = 300.0;
+const TARGET_RADIUS: f32 = 20.0;
+const DESPAWN_MARGIN: f32 = 200.0;
+
+pub fn projectile_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    win_size: Res<WinSize>,
+    mut projectiles: Query<(Entity, &mut Transform, &Projectile, Option<&LinearVelocity>, Option<&Explosive>), Without<Alien>>,
+    aliens: Query<&Transform, With<Alien>>,
+) {
+    let delta = time.delta_seconds();
+    // let target = aliens.single();
+
+    for (
+        entity,
+        mut transform,
+        projectile,
+        velocity,
+        explosive
+    ) in &mut projectiles {
+
+        if projectile.auto_despawn && (
+            transform.translation.y > win_size.height / 2.0 + DESPAWN_MARGIN ||
+            transform.translation.y < -win_size.height / 2.0 - DESPAWN_MARGIN || 
+            transform.translation.x > win_size.width / 2.0 + DESPAWN_MARGIN ||
+            transform.translation.x < -win_size.width / 2.0 - DESPAWN_MARGIN) {
+
+            commands.entity(entity).despawn();
+            continue;            
+        }   
+
+        for alien_transform in &aliens {
+
+            let target_pos = alien_transform.translation;
+
+            let speed = velocity.map_or(PROJECTILE_SPEED, |v| v.0);
+            let current_angle = transform.rotation.to_euler(EulerRot::XYZ).2 + std::f32::consts::FRAC_PI_2;
+    
+            let velocity_vec = Vec3::new(current_angle.cos() * speed, current_angle.sin() * speed, 0.0);
+            transform.translation += velocity_vec * delta;
+    
+            let distance = transform.translation.distance(target_pos);
+    
+            if distance < projectile.radius + TARGET_RADIUS {
+                commands.entity(entity).despawn();
+                if let Some(explosive) = explosive {
+                    commands.spawn(
+                        ExplosionToSpawn {
+                            damage: explosive.damage,
+                            radius: explosive.radius,
+                            pos: transform.translation
+                        }
+                    );
+                }
+    
+                continue;
+            }
+        }
+
+
+    }
+}
+
+pub fn decaying_projectile_system(
+    mut commands: Commands,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    time: Res<Time>,
+    mut projectiles: Query<(Entity, &mut Decaying, AnyOf<(&mut Sprite, &Handle<ColorMaterial>)>), With<Projectile>>
+) {
+    for (
+        entity,
+        mut decaying,
+        sprite_or_material
+    ) in &mut projectiles {
+        decaying.decay_timer.tick(time.delta());
+
+        if decaying.decay_type == DecayType::Transparency {
+            let alpha = decaying.decay_timer.fraction_remaining();
+            
+            match sprite_or_material {
+                (Some(mut sprite), None) => sprite.color.set_alpha(alpha),
+                (None, Some(handle)) => {
+                    if let Some(material) = materials.get_mut(handle) {
+                        material.color.set_alpha(alpha)
+                    }
+                },
+                _ => ()
+            }
+        }
+
+        if decaying.decay_timer.finished() {
+            commands.entity(entity).despawn();
+        }
+    }
+}
 
 // pub fn homing_projectile_system(
 //     time: Res<Time>,
@@ -135,44 +164,44 @@
 //     }
 // }
 
-// pub fn explosion_spawn_system(
-//     mut commands: Commands,
-//     mut materials: ResMut<Assets<ColorMaterial>>,
-//     mut meshes: ResMut<Assets<Mesh>>,
-// 	query: Query<(Entity, &ExplosionToSpawn)>,
-// ) {
-//     for (entity, explosion_to_spawn) in &query {
-// 		commands
-// 			.spawn((
-//                 Explosion {
-//                     radius: explosion_to_spawn.radius,
-//                     pos: explosion_to_spawn.pos
-//                 },
-//                 AoEAnimation {
-//                     timer: Timer::from_seconds(1., TimerMode::Once),
-//                     despawn_on_end: true,
-//                     radius_animation: Some(RadiusAnimation::FromBaseRadius { grow_speed: 1.}),
-//                     color_animation: Some(ColorAnimation {
-//                         start_color: Color::srgb(1.0, 1.0, 0.5),
-//                         end_color: Color::srgb(1.0, 0.5, 0.0),
-//                         alpha_factor: None,
-//                         animate_alpha: true
-//                     })
-//                 },
-//                 MaterialMesh2dBundle {
-//                     mesh: Mesh2dHandle(meshes.add(Circle {radius: explosion_to_spawn.radius })),
-//                     material: materials.add(Color::srgb(1.0, 1.0, 0.0)),
-//                     transform: Transform {
-//                         translation: explosion_to_spawn.pos.with_z(100.),
-//                         ..default()
-//                     },
-//                     ..default()
-//                 }
-// 			));
+pub fn explosion_spawn_system(
+    mut commands: Commands,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+	query: Query<(Entity, &ExplosionToSpawn)>,
+) {
+    for (entity, explosion_to_spawn) in &query {
+		commands
+			.spawn((
+                Explosion {
+                    radius: explosion_to_spawn.radius,
+                    pos: explosion_to_spawn.pos
+                },
+                // AoEAnimation {
+                //     timer: Timer::from_seconds(1., TimerMode::Once),
+                //     despawn_on_end: true,
+                //     radius_animation: Some(RadiusAnimation::FromBaseRadius { grow_speed: 1.}),
+                //     color_animation: Some(ColorAnimation {
+                //         start_color: Color::srgb(1.0, 1.0, 0.5),
+                //         end_color: Color::srgb(1.0, 0.5, 0.0),
+                //         alpha_factor: None,
+                //         animate_alpha: true
+                //     })
+                // },
+                MaterialMesh2dBundle {
+                    mesh: Mesh2dHandle(meshes.add(Circle {radius: explosion_to_spawn.radius })),
+                    material: materials.add(Color::srgb(1.0, 1.0, 0.0)),
+                    transform: Transform {
+                        translation: explosion_to_spawn.pos.with_z(100.),
+                        ..default()
+                    },
+                    ..default()
+                }
+			));
 
-// 		commands.entity(entity).despawn();
-// 	}
-// }
+		commands.entity(entity).despawn();
+	}
+}
 
 
 // pub fn aoe_animation_system(
@@ -230,210 +259,224 @@
 //     }
 // }
 
-// pub fn flag_idle_turrets(
-//     time: Res<Time>,
-//     mut query: Query<(&mut IdleRotation, &TargetingTurret)>
-// ) {
-//     for (mut idle_rotation, turret) in &mut query {
-//         if turret.has_target {
-//             idle_rotation.idle_timer.reset();
-//         } else {
-//             idle_rotation.idle_timer.tick(time.delta());
-//         }
+pub fn flag_idle_turrets(
+    time: Res<Time>,
+    mut query: Query<(&mut IdleRotation, &TargetingTurret)>
+) {
+    for (mut idle_rotation, turret) in &mut query {
+        if turret.has_target {
+            idle_rotation.idle_timer.reset();
+        } else {
+            idle_rotation.idle_timer.tick(time.delta());
+        }
 
-//         if idle_rotation.idle_timer.just_finished() {
-//             idle_rotation.target_angle = turret.rotation;
-//         }
+        if idle_rotation.idle_timer.just_finished() {
+            idle_rotation.target_angle = turret.rotation;
+        }
 
-//         idle_rotation.is_idle = idle_rotation.idle_timer.finished();
-//     }
-// }
+        idle_rotation.is_idle = idle_rotation.idle_timer.finished();
+    }
+}
 
-// const ROTATION_EPSILON: f32 = 0.01;
-// const DEFAULT_ROTATION_SPEED: f32 = std::f32::consts::PI;
-// const MAX_RANDOM_ROTATION_ANGLE: f32 = std::f32::consts::FRAC_PI_2;
+const ROTATION_EPSILON: f32 = 0.01;
+const DEFAULT_ROTATION_SPEED: f32 = std::f32::consts::PI;
+const MAX_RANDOM_ROTATION_ANGLE: f32 = std::f32::consts::FRAC_PI_2;
 
-// pub fn idle_rotation_system(
-//     time: Res<Time>,
-//     mut query: Query<(&mut Transform, &mut IdleRotation, Option<&RotationSpeed>)>,
-//     mut rng: ResMut<GlobalEntropy<ChaCha8Rng>>
-// ) {
-//     for (
-//         mut transform,
-//         mut idle_rotation,
-//         rotation_speed
-//     ) in &mut query {
-//         if !idle_rotation.is_idle {
-//             continue;
-//         }
+pub fn idle_rotation_system(
+    time: Res<Time>,
+    mut query: Query<(&mut Transform, &mut IdleRotation, Option<&RotationSpeed>)>,
+    mut rng: ResMut<GlobalEntropy<ChaCha8Rng>>
+) {
+    for (
+        mut transform,
+        mut idle_rotation,
+        rotation_speed
+    ) in &mut query {
+        if !idle_rotation.is_idle {
+            continue;
+        }
 
-//         let current_angle = transform.rotation.to_euler(EulerRot::XYZ).2;
+        let current_angle = transform.rotation.to_euler(EulerRot::XYZ).2;
 
-//         let timer = &mut idle_rotation.rotation_timer;
-//         timer.tick(time.delta());
-//         if timer.finished() {
-//             let random_rotation = rng.next_u32();
-//             let random_angle = (random_rotation as f32 / u32::MAX as f32) * MAX_RANDOM_ROTATION_ANGLE - MAX_RANDOM_ROTATION_ANGLE / 2.;
+        let timer = &mut idle_rotation.rotation_timer;
+        timer.tick(time.delta());
+        if timer.finished() {
+            let random_rotation = rng.next_u32();
+            let random_angle = (random_rotation as f32 / u32::MAX as f32) * MAX_RANDOM_ROTATION_ANGLE - MAX_RANDOM_ROTATION_ANGLE / 2.;
 
-//             idle_rotation.target_angle = current_angle + random_angle;
-//             continue;
-//         }
+            idle_rotation.target_angle = current_angle + random_angle;
+            continue;
+        }
 
-//         let angle_diff = shortest_angle_diff(current_angle, idle_rotation.target_angle);
-//         if angle_diff.abs() < ROTATION_EPSILON {
-//             continue;
-//         }
+        let angle_diff = shortest_angle_diff(current_angle, idle_rotation.target_angle);
+        if angle_diff.abs() < ROTATION_EPSILON {
+            continue;
+        }
 
-//         let rotation_speed = rotation_speed.map_or(DEFAULT_ROTATION_SPEED, |rs| rs.0) / 2.;
-//         let rotation_step = rotation_speed * time.delta_seconds();
+        let rotation_speed = rotation_speed.map_or(DEFAULT_ROTATION_SPEED, |rs| rs.0) / 2.;
+        let rotation_step = rotation_speed * time.delta_seconds();
 
-//         let new_angle = current_angle + rotation_step * angle_diff.signum();
-//         transform.rotation = Quat::from_rotation_z(new_angle);
-//     }
-// }
+        let new_angle = current_angle + rotation_step * angle_diff.signum();
+        transform.rotation = Quat::from_rotation_z(new_angle);
+    }
+}
 
-// fn turret_targeting_system(
-//     time: Res<Time>,
-//     mut turrets: Query<(&mut TargetingTurret, &mut Transform, Option<&RotationSpeed>)>,
-//     targets: Query<&Target>
-// ) {
-//     let target_position = targets.single().pos;
+pub fn turret_targeting_system(
+    time: Res<Time>,
+    mut turrets: Query<(&mut TargetingTurret, &mut Transform, Option<&RotationSpeed>), Without<Alien>>,
+    aliens: Query<&Transform, With<Alien>>
+) {
+    // let target_position = targets.single().pos;
 
-//     for (
-//         mut turret,
-//         mut turret_transform,
-//         rotation_speed
-//     ) in &mut turrets {
-//         let target_distance = (target_position - turret_transform.translation).truncate();
-//         let is_inside_radius = match turret.targeting_radius {
-//             Some(radius) => radius >= target_distance.length(),
-//             None => true
-//         };
+    for (
+        mut turret,
+        mut turret_transform,
+        rotation_speed
+    ) in &mut turrets {
 
-//         turret.has_target = is_inside_radius;
-//         if !is_inside_radius {
-//             continue;
-//         }
+        let mut has_tagret = false;
+        let mut target_2 = Vec2::ZERO;
 
-//         let target_angle = target_distance.y.atan2(target_distance.x) - std::f32::consts::FRAC_PI_2;
-//         let current_angle = turret_transform.rotation.to_euler(EulerRot::XYZ).2;
-//         let angle_diff = shortest_angle_diff(current_angle, target_angle);
+        for alien_transform in &aliens {
 
-//         if angle_diff.abs() < ROTATION_EPSILON {
-//             continue;
-//         }
+            let alien_pos = alien_transform.translation;
 
-//         let rotation_speed = match rotation_speed {
-//             Some(speed) => speed.0,
-//             None => DEFAULT_ROTATION_SPEED
-//         };
+            let target_distance = (alien_pos - turret_transform.translation).truncate();
+            let is_inside_radius = match turret.targeting_radius {
+                Some(radius) => radius >= target_distance.length(),
+                None => true
+            };
 
-//         let rotation_step = smaller_magnitude(rotation_speed * time.delta_seconds(), angle_diff);
-//         let new_angle = current_angle + rotation_step * angle_diff.signum();
+            if is_inside_radius {
+                has_tagret = true;
+                target_2 = target_distance;
 
-//         turret_transform.rotation = Quat::from_rotation_z(new_angle);
-//         turret.rotation = new_angle;
-//     }
-// }
+                break;
+            }    
+        }
+
+        turret.has_target = has_tagret;
+        if !has_tagret {
+            continue;
+        }
+
+        let target_angle = target_2.y.atan2(target_2.x) - std::f32::consts::FRAC_PI_2;
+        let current_angle = turret_transform.rotation.to_euler(EulerRot::XYZ).2;
+        let angle_diff = shortest_angle_diff(current_angle, target_angle);
+
+        if angle_diff.abs() < ROTATION_EPSILON {
+            continue;
+        }
+
+        let rotation_speed = match rotation_speed {
+            Some(speed) => speed.0,
+            None => DEFAULT_ROTATION_SPEED
+        };
+
+        let rotation_step = smaller_magnitude(rotation_speed * time.delta_seconds(), angle_diff);
+        let new_angle = current_angle + rotation_step * angle_diff.signum();
+
+        turret_transform.rotation = Quat::from_rotation_z(new_angle);
+        turret.rotation = new_angle;
+    }
+}
 
 
-// fn projectile_turret_attack_system(
-//     mut commands: Commands,
-//     game_textures: Res<GameTextures>,
-//     time: Res<Time>,
-//     mut materials: ResMut<Assets<ColorMaterial>>,
-//     mut meshes: ResMut<Assets<Mesh>>,
-//     mut turrets: Query<(&TargetingTurret, &Transform, Option<&mut AttackDelay>, Option<&SpawnOffset>, Option<&AttackDispersion>), With<ProjectileTurret>>,
-//     mut rng: ResMut<GlobalEntropy<ChaCha8Rng>>
-// ) {
-//     for (
-//         turret,
-//         turret_transform,
-//         attack_delay,
-//         spawn_offset,
-//         attack_dispersion
-//     ) in &mut turrets {
-//         if !turret.has_target {
-//             continue;
-//         }
+pub fn projectile_turret_attack_system(
+    mut commands: Commands,
+    game_textures: Res<GameTextures>,
+    time: Res<Time>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut turrets: Query<(&TargetingTurret, &Transform, Option<&mut AttackDelay>, Option<&ProjectileSpawnOffset>, Option<&AttackDispersion>), With<ProjectileTurret>>,
+    mut rng: ResMut<GlobalEntropy<ChaCha8Rng>>
+) {
+    for (
+        turret,
+        turret_transform,
+        attack_delay,
+        spawn_offset,
+        attack_dispersion
+    ) in &mut turrets {
+        if !turret.has_target {
+            continue;
+        }
 
-//         if let Some(mut attack_delay) = attack_delay {
-//             attack_delay.0.tick(time.delta());
-//             if !attack_delay.0.finished() {
-//                 continue;
-//             }
-//         }
+        if let Some(mut attack_delay) = attack_delay {
+            attack_delay.0.tick(time.delta());
+            if !attack_delay.0.finished() {
+                continue;
+            }
+        }
 
-//         let direction = match attack_dispersion {
-//             Some(dispersion) => {
-//                 let random_angle = map_u32_to_range(rng.next_u32(), -dispersion.0, dispersion.0);
-//                 let rotation = Quat::from_rotation_z(random_angle);
-//                 rotation * turret_transform.rotation
-//             },
-//             None => turret_transform.rotation
-//         };
+        let direction = match attack_dispersion {
+            Some(dispersion) => {
+                let random_angle = map_u32_to_range(rng.next_u32(), -dispersion.0, dispersion.0);
+                let rotation = Quat::from_rotation_z(random_angle);
+                rotation * turret_transform.rotation
+            },
+            None => turret_transform.rotation
+        };
 
-//         let offset = turret_transform.rotation * spawn_offset.map_or(Vec3::ZERO, |off| off.0);
-//         let spawn_translation = turret_transform.translation + offset;
+        let offset = turret_transform.rotation * spawn_offset.map_or(Vec3::ZERO, |off| off.0);
+        let spawn_translation = turret_transform.translation + offset;
 
-//         commands.spawn((
-//             Projectile {
-//                 auto_despawn: true,
-//                 radius: 1.
-//             },
-//             // Decaying {
-//             //     decay_timer: Timer::from_seconds(1., TimerMode::Once),
-//             //     decay_type: DecayType::Despawn
-//             // },
-//             // AoEAnimation {
-//             //     timer: Timer::from_seconds(1., TimerMode::Once),
-//             //     radius_animation: Some(RadiusAnimation::FromStartToEnd { start_radius: 2., end_radius: 20. }),
-//             //     color_animation: Some(ColorAnimation {
-//             //         start_color: Color::srgb(1., 0.5, 0.),
-//             //         end_color: Color::srgb(1., 0., 0.1),
-//             //         alpha_factor: None,
-//             //         animate_alpha: true
-//             //     }),
-//             //     despawn_on_end: false
-//             // },
-//             // Homing {
-//             //     homing_angle: std::f32::consts::PI,
-//             //     homing_distance: 500.,
-//             //     homing_speed: 2.
-//             // },
-//             // Explosive {
-//             //     damage: 5.,
-//             //     radius: 20.
-//             // },
-//             InstantDamage(1.),
-//             LinearVelocity(200.),
-//             // MaterialMesh2dBundle {
-//             //     mesh: Mesh2dHandle(meshes.add(Circle { radius: 2. })),
-//             //     material: materials.add(Color::srgb(0.64, 0.12, 0.36)),
-//             //     transform: Transform {
-//             //         translation: spawn_translation.with_z(99.),
-//             //         rotation: direction,
-//             //         ..default()
-//             //     },
-//             //     ..default()
-//             // }
-//             SpriteBundle {
-//                 texture: game_textures.bullet.clone(),
-//                 transform: Transform {
-//                     translation: spawn_translation,
-//                     rotation: direction,
-//                     ..default()
-//                 },
-//                 ..default()
-//             }
-//         ));
-//     }
-// }
+        commands.spawn((
+            Projectile {
+                auto_despawn: true,
+                radius: 1.
+            },
+            // Decaying {
+            //     decay_timer: Timer::from_seconds(1., TimerMode::Once),
+            //     decay_type: DecayType::Despawn
+            // },
+            // AoEAnimation {
+            //     timer: Timer::from_seconds(1., TimerMode::Once),
+            //     radius_animation: Some(RadiusAnimation::FromStartToEnd { start_radius: 2., end_radius: 20. }),
+            //     color_animation: Some(ColorAnimation {
+            //         start_color: Color::srgb(1., 0.5, 0.),
+            //         end_color: Color::srgb(1., 0., 0.1),
+            //         alpha_factor: None,
+            //         animate_alpha: true
+            //     }),
+            //     despawn_on_end: false
+            // },
+            // Homing {
+            //     homing_angle: std::f32::consts::PI,
+            //     homing_distance: 500.,
+            //     homing_speed: 2.
+            // },
+            // Explosive {
+            //     damage: 5.,
+            //     radius: 20.
+            // },
+            KineticDamage(10.0),
+            LinearVelocity(100.0),
+            // MaterialMesh2dBundle {
+            //     mesh: Mesh2dHandle(meshes.add(Circle { radius: 2. })),
+            //     material: materials.add(Color::srgb(0.64, 0.12, 0.36)),
+            //     transform: Transform {
+            //         translation: spawn_translation.with_z(99.),
+            //         rotation: direction,
+            //         ..default()
+            //     },
+            //     ..default()
+            // }
+            SpriteBundle {
+                texture: game_textures.bullet.clone(),
+                transform: Transform {
+                    translation: spawn_translation,
+                    rotation: direction,
+                    ..default()
+                },
+                ..default()
+            },
+            RenderLayers::layer(1)
+        ));
+    }
+}
 
-// fn map_u32_to_range(value: u32, min: f32, max: f32) -> f32 {
-//     let normalized = value as f32 / u32::MAX as f32;
-//     min + normalized * (max - min)
-// }
+
 
 // pub fn aoe_turret_attack_system(
 //     time: Res<Time>,

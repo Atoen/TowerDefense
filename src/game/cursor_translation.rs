@@ -27,6 +27,8 @@ fn game_click_system(
 
         let cell = get_grid_cell_coords(&click_pos.truncate());
 
+        debug!("Cell {:?} clicked", cell);
+
         selected_cell.0 = cell;
         writer.send(GameCellClickedEvent(cell));
     }
@@ -73,6 +75,8 @@ impl Plugin for CursorTranslationPlugin {
             .add_event::<GameCellClickedEvent>()
 
             .add_systems(Update, game_click_system
-                .run_if(on_event::<GameArenaClickedEvent>()));
+                .run_if(in_state(AppState::InGame).and_then(
+                    on_event::<GameArenaClickedEvent>()
+                )));
     }
 }

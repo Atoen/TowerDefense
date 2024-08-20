@@ -1,87 +1,96 @@
+use bevy::ecs::component::StorageType;
 use button::Button;
 
 use crate::*;
 
-#[derive(Component, Debug, Default, Clone, PartialEq)]
+#[derive(Debug)]
 pub struct GameStatus;
 
-#[derive(Component, Debug, Default, Clone, PartialEq)]
-struct GameStatusUi;
+impl Component for GameStatus {
+    const STORAGE_TYPE: StorageType = StorageType::Table;
 
-fn build_component(
-    mut commands: Commands,
-    query: Query<Entity, Added<GameStatus>>,
-    game_cash: Res<GameCash>,
-    ui_textures: Res<UiTextures>
-) {
-    for entity in &query {
-        commands.entity(entity).insert(
-            UiTreeBundle::<GameStatusUi>::from(UiTree::new2d("Game Status"))
-        ).with_children(|ui| {
+    fn register_component_hooks(_hooks: &mut bevy::ecs::component::ComponentHooks) {
+        _hooks.on_add(|mut world, entity, _| {
 
-            let row = UiLink::<GameStatusUi>::path("Row");
-            ui.spawn((
-                row.clone(),
-                UiLayout::window_full().pack::<Base>(),
-                Pickable::IGNORE,
-            ));
+            let cash = world.resource::<GameCash>().0;
+            let pause = world.resource::<UiTextures>().pause.clone();
 
-            ui.spawn((
-                row.add("Pause Button"),
-                UiLayout::window().pos(5.).anchor(Anchor::TopLeft).size((20.0, 20.0)).pack::<Base>(),
-                Button {
-                    hover_enlarge: false,
-                    text: None,
-                    image: Some(ui_textures.pause.clone())
-                },
-                PasueButton
-            ));
+            let mut commands = world.commands();
 
-            ui.spawn((
-                row.add("Cash"),
-                UiLayout::window().x(Rl(50.0)).anchor(Anchor::TopCenter).size((100.0, 40.0)).pack::<Base>(),
-                UiText2dBundle {
-                     text: Text::from_sections([
-                         TextSection {
-                             value: game_cash.0.to_string(),
-                             style: TextStyle {
-                                 font_size: 50.0,
-                                 color: Color::GRAY_200,
-                                 ..default()
+            commands.entity(entity).insert(
+                UiTreeBundle::<GameStatusUi>::from(UiTree::new2d("Game Status"))
+            ).with_children(|ui| {
+                let row = UiLink::<GameStatusUi>::path("Row");
+                ui.spawn((
+                    row.clone(),
+                    UiLayout::window_full().pack::<Base>(),
+                    Pickable::IGNORE,
+                ));
+    
+                ui.spawn((
+                    row.add("Pause Button"),
+                    UiLayout::window().pos(5.).anchor(Anchor::TopLeft).size((20.0, 20.0)).pack::<Base>(),
+                    Button {
+                        hover_enlarge: false,
+                        text: None,
+                        image: Some(pause)
+                    },
+                    StatusButton::Pause
+                ));
+    
+                ui.spawn((
+                    row.add("Cash"),
+                    UiLayout::window().x(Rl(50.0)).anchor(Anchor::TopCenter).size((100.0, 40.0)).pack::<Base>(),
+                    UiText2dBundle {
+                         text: Text::from_sections([
+                             TextSection {
+                                 value: cash.to_string(),
+                                 style: TextStyle {
+                                     font_size: 50.0,
+                                     color: Color::GRAY_200,
+                                     ..default()
+                                 }
+                             },
+                             TextSection {
+                                 value: "$".into(),
+                                 style: TextStyle {
+                                     font_size: 50.0,
+                                     color: Color::GRAY_200,
+                                     ..default()
+                                 }
                              }
-                         },
-                         TextSection {
-                             value: "$".into(),
-                             style: TextStyle {
-                                 font_size: 50.0,
-                                 color: Color::GRAY_200,
-                                 ..default()
-                             }
-                         }
-                     ]),
-                     ..default()
-                 },
-                GameCashDisplay
-            ));
-
-            ui.spawn((
-                row.add("Start Round"),
-                UiLayout::window().x(Rl(100.0)).anchor(Anchor::TopRight).size((150.0, 40.0)).pack::<Base>(),
-                Button {
-                    hover_enlarge: true,
-                    text: Some("Start Round".into()),
-                    image: None
-                }
-            ));
+                         ]),
+                         ..default()
+                     },
+                    GameCashDisplay
+                ));
+    
+                ui.spawn((
+                    row.add("Start Round"),
+                    UiLayout::window().x(Rl(100.0)).anchor(Anchor::TopRight).size((150.0, 40.0)).pack::<Base>(),
+                    Button {
+                        hover_enlarge: true,
+                        text: Some("Start Round".into()),
+                        image: None
+                    },
+                    StatusButton::StartRound
+                ));
+            });
         });
     }
 }
+
+#[derive(Component, Debug, Default, Clone, PartialEq)]
+struct GameStatusUi;
 
 #[derive(Resource)]
 pub struct GameCash(pub u32);
 
 #[derive(Component)]
-struct PasueButton;
+enum StatusButton {
+    Pause,
+    StartRound
+}
 
 #[derive(Component)]
 struct GameCashDisplay;
@@ -93,20 +102,30 @@ pub struct CashChangedEvent {
 
 fn toggle_pause_system(
     mut events: EventReader<UiClickEvent>,
-    query: Query<&PasueButton>,
-    state: Res<State<PausedState>>,
-    mut next_state: ResMut<NextState<PausedState>>
+    query: Query<&StatusButton>,
+    pause_state: Res<State<PausedState>>,
+    mut next_pause_state: ResMut<NextState<PausedState>>,
+    mut next_game_state: ResMut<NextState<GameState>>
 ) {
     for event in events.read() {
-        if query.get(event.target).is_ok() {            
-            let next_pause_state = match state.get() {
-                PausedState::Running => PausedState::Paused,
-                PausedState::Paused => PausedState::Running
-            };
-        
-            info!("Current game state: {}", next_pause_state);
-        
-            next_state.set(next_pause_state);
+        if let Ok(button) = query.get(event.target){    
+
+            match button {
+                StatusButton::Pause => {
+                    let next_pause = match pause_state.get() {
+                        PausedState::Running => PausedState::Paused,
+                        PausedState::Paused => PausedState::Running
+                    };
+                
+                    info!("Current pause state: {}", next_pause);
+                
+                    next_pause_state.set(next_pause);
+                }
+                StatusButton::StartRound => {
+                    info!("Starting round");
+                    next_game_state.set(GameState::AttackWave);
+                }
+            }
         }
     }
 }
@@ -134,11 +153,13 @@ impl Plugin for GameStatusPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_event::<CashChangedEvent>()
+
             .add_plugins(UiGenericPlugin::<GameStatusUi>::new())
-            .add_systems(Update, build_component.before(UiSystems::Compute))
+
             .add_systems(PostUpdate, toggle_pause_system
                 .distributive_run_if(on_event::<UiClickEvent>())
                 .distributive_run_if(input_just_pressed(MouseButton::Left)))
+
             .add_systems(Update, game_cash_updated_system
                 .run_if(on_event::<CashChangedEvent>())
             );

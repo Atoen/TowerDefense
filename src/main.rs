@@ -1,15 +1,16 @@
 use std::fmt::Debug;
 
 use bevy::core_pipeline::bloom::BloomSettings;
+use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::input::common_conditions::input_just_pressed;
+use bevy::log::LogPlugin;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages};
 use bevy::render::view::RenderLayers;
 use bevy::render::RenderPlugin;
 use bevy::render::settings::{Backends, RenderCreation, WgpuSettings};
-use bevy::sprite::{Anchor, MaterialMesh2dBundle, Mesh2dHandle};
+use bevy::sprite::Anchor;
 use bevy::window::PrimaryWindow;
-use bevy_framepace::{FramepaceSettings, Limiter};
 use bevy_prng::ChaCha8Rng;
 use bevy_rand::plugin::EntropyPlugin;
 use bevy_tweening::TweeningPlugin;
@@ -68,6 +69,20 @@ pub enum PausedState {
     Paused
 }
 
+#[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash, Display)]
+pub enum AppState {
+    #[default]
+    InMenu,
+    InGame
+}
+
+#[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash, Display)]
+pub enum GameState {
+    #[default]
+    BuildingPhase,
+    AttackWave
+}
+
 #[derive(Resource)]
 pub struct GridSize(pub UVec2);
 
@@ -81,17 +96,7 @@ pub struct WinSize {
 }
 
 #[derive(Resource)]
-struct FirstPassImageHandle(Handle<Image>);
-
-
-// #[derive(Resource)]
-// pub struct GameTextures {
-//     pub arrow: Handle<Image>,
-//     pub rail_gun: Handle<Image>,
-//     pub bullet: Handle<Image>,
-//     pub laser_beam: Handle<Image>,
-//     pub rail_gun_beam: Handle<Image>,
-// }
+struct RenderTarget(Handle<Image>);
 
 fn main() {
     #[cfg(not(target_arch = "wasm32"))]
@@ -104,27 +109,29 @@ fn main() {
     });
 
     #[cfg(target_arch = "wasm32")]
-    let default_plugins = DefaultPlugins.set(WindowPlugin {
-        primary_window: Some(Window {
-            canvas: Some("#game-canvas".into()),
-            ..default()
-        }),
-        ..default()
-    });
+    let default_plugins = DefaultPlugins;
 
     App::new()
-
-        .add_plugins((default_plugins.set(low_latency_window_plugin()), EntropyPlugin::<ChaCha8Rng>::default()))
+        .add_plugins(default_plugins.set(LogPlugin {
+            filter: "wgpu_core=warn,wgpu_hal::vulkan::instance=off,tower_defense=debug".into(),
+            level: bevy::log::Level::INFO,
+            ..default()
+        }))
+        .add_plugins(EntropyPlugin::<ChaCha8Rng>::default())
         .add_plugins(UiPlugin)
         .add_plugins(bevy_framepace::FramepacePlugin)
+        .add_plugins(FrameTimeDiagnosticsPlugin)
         .add_plugins(UtilPlugin)
         .add_plugins(ComponentPlugin)
         .add_plugins(RoutePlugin)
         .add_plugins(TweeningPlugin)
         .add_plugins(GamePlugin)
         .add_systems(Startup, setup)
-        // .add_systems(Update, rotator_system)
+        
         .init_state::<PausedState>()
+        .init_state::<AppState>()
+        .init_state::<GameState>()
+
         .insert_resource(GridSize(UVec2::new(GRID_WIDTH, GRID_HEIGHT)))
         // .add_systems(Update, (
         //     // move_target,
@@ -151,13 +158,9 @@ fn setup(
     asset_server: Res<AssetServer>,
     query: Query<&Window, With<PrimaryWindow>>,
     mut commands: Commands,
-    mut settings: ResMut<FramepaceSettings>,
     mut images: ResMut<Assets<Image>>,
     texture_atlases: ResMut<Assets<TextureAtlasLayout>>
 ) {
-
-    settings.limiter = Limiter::Auto;
-
     let Ok(primary) = query.get_single() else {
         return;
     };
@@ -184,7 +187,7 @@ fn setup(
 
     image.resize(size);
     let image_handle = images.add(image);
-    commands.insert_resource(FirstPassImageHandle(image_handle.clone()));
+    commands.insert_resource(RenderTarget(image_handle.clone()));
     let first_pass_layer = RenderLayers::layer(1);
 
     commands.spawn((
@@ -201,23 +204,23 @@ fn setup(
         GameCamera
     ));
 
-    // commands.spawn((
-    //     SpriteBundle {
-    //         texture: asset_server.load(AssetPath::GRID_CELL),
-    //         sprite: Sprite {
-    //             custom_size: Some(Vec2::new((GRID_CELL_SIZE * GRID_WIDTH) as f32, (GRID_CELL_SIZE * GRID_HEIGHT) as f32)),
-    //             ..default()
-    //         },
-    //         ..default()
-    //     },
-    //     ImageScaleMode::Tiled {
-    //         tile_x: true,
-    //         tile_y: true,
-    //         stretch_value: 1.0
-    //     },
-    //     first_pass_layer.clone(),
-    //     Grid
-    // ));
+    commands.spawn((
+        SpriteBundle {
+            texture: asset_server.load("images/grid_cell.png"),
+            sprite: Sprite {
+                custom_size: Some(Vec2::new((GRID_CELL_SIZE * GRID_WIDTH) as f32, (GRID_CELL_SIZE * GRID_HEIGHT) as f32)),
+                ..default()
+            },
+            ..default()
+        },
+        ImageScaleMode::Tiled {
+            tile_x: true,
+            tile_y: true,
+            stretch_value: 1.0
+        },
+        first_pass_layer.clone(),
+        Grid
+    ));
 
     commands.insert_resource(GameTextures::load(&asset_server, texture_atlases));
     commands.insert_resource(UiTextures::load(&asset_server));

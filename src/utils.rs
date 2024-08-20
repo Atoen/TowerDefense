@@ -1,4 +1,12 @@
+use bevy::diagnostic::DiagnosticsStore;
+
 use crate::*;
+
+#[derive(Component)]
+struct FpsRoot;
+
+#[derive(Component)]
+struct FpsText;
 
 #[derive(Component)]
 pub struct DespawnAfterFrames{
@@ -7,10 +15,12 @@ pub struct DespawnAfterFrames{
 }
 
 impl DespawnAfterFrames {
-    pub const ROUTE_NAVIGATION: DespawnAfterFrames = DespawnAfterFrames { delay: 3, recursive: true };
+    pub const ONE: DespawnAfterFrames = DespawnAfterFrames { delay: 1, recursive: true };
+    pub const TWO: DespawnAfterFrames = DespawnAfterFrames { delay: 2, recursive: true };
+    pub const THREE: DespawnAfterFrames = DespawnAfterFrames { delay: 2, recursive: true };
 }
 
-pub fn despawn_after_frames_system(
+fn despawn_after_frames_system(
     mut commands: Commands,
     mut query: Query<(Entity, &mut DespawnAfterFrames)>
 ) {
@@ -29,10 +39,111 @@ pub fn despawn_after_frames_system(
     }
 }
 
+fn setup_fps_counter(
+    mut commands: Commands,
+) {
+    let root = commands.spawn((
+        FpsRoot,
+        NodeBundle {
+            background_color: BackgroundColor(Color::BLACK.with_alpha(0.5)),
+            z_index: ZIndex::Global(i32::MAX),
+            style: Style {
+                position_type: PositionType::Absolute,
+                right: Val::Auto,
+                top: Val::Percent(1.0),
+                bottom: Val::Auto,
+                left: Val::Percent(5.0),
+                padding: UiRect::all(Val::Px(4.0)),
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    )).id();
+
+    let text_fps = commands.spawn((
+        FpsText,
+        TextBundle {
+            text: Text::from_sections([
+                TextSection {
+                    value: "FPS: ".into(),
+                    style: TextStyle {
+                        font_size: 16.0,
+                        color: Color::WHITE,
+                        ..default()
+                    }
+                },
+                TextSection {
+                    value: " N/A".into(),
+                    style: TextStyle {
+                        font_size: 16.0,
+                        color: Color::WHITE,
+                        ..default()
+                    }
+                },
+            ]),
+            ..Default::default()
+        },
+    )).id();
+    commands.entity(root).push_children(&[text_fps]);
+}
+
+fn fps_text_update_system(
+    diagnostics: Res<DiagnosticsStore>,
+    mut query: Query<&mut Text, With<FpsText>>,
+) {
+    for mut text in &mut query {
+        if let Some(value) = diagnostics
+            .get(&FrameTimeDiagnosticsPlugin::FPS)
+            .and_then(|fps| fps.smoothed())
+        {
+            text.sections[1].value = format!("{value:>4.0}");
+            text.sections[1].style.color = if value >= 120.0 {
+                Color::srgb(0.0, 1.0, 0.0)
+            } else if value >= 60.0 {
+                Color::srgb(
+                    (1.0 - (value - 60.0) / (120.0 - 60.0)) as f32,
+                    1.0,
+                    0.0,
+                )
+            } else if value >= 30.0 {
+                Color::srgb(
+                    1.0,
+                    ((value - 30.0) / (60.0 - 30.0)) as f32,
+                    0.0,
+                )
+            } else {
+                Color::srgb(1.0, 0.0, 0.0)
+            }
+        } else {
+            text.sections[1].value = " N/A".into();
+            text.sections[1].style.color = Color::WHITE;
+        }
+    }
+}
+
+fn fps_counter_showhide(
+    mut q: Query<&mut Visibility, With<FpsRoot>>,
+    kbd: Res<ButtonInput<KeyCode>>,
+) {
+    if kbd.just_pressed(KeyCode::F3) {
+        let mut vis = q.single_mut();
+        *vis = match *vis {
+            Visibility::Hidden => Visibility::Visible,
+            _ => Visibility::Hidden,
+        };
+    }
+}
+
 pub struct UtilPlugin;
 impl Plugin for UtilPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, despawn_after_frames_system);
+        app
+
+            .add_systems(Startup, setup_fps_counter)
+
+            .add_systems(Update, (fps_text_update_system, fps_counter_showhide))
+
+            .add_systems(Update, despawn_after_frames_system);
     }
 }
 
@@ -53,10 +164,15 @@ pub fn smaller_magnitude(a: f32, b: f32) -> f32 {
 }
 
 pub fn shortest_angle_diff(from: f32, to: f32) -> f32 {
-    let diff = (to - from).rem_euclid(2.0 * std::f32::consts::PI);
+    let diff = (to - from).rem_euclid(std::f32::consts::TAU);
     if diff > std::f32::consts::PI {
-        diff - 2.0 * std::f32::consts::PI
+        diff - std::f32::consts::TAU
     } else {
         diff
     }
+}
+
+pub fn map_u32_to_range(value: u32, min: f32, max: f32) -> f32 {
+    let normalized = value as f32 / u32::MAX as f32;
+    min + normalized * (max - min)
 }
