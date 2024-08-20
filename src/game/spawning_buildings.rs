@@ -66,10 +66,19 @@ fn spawn_consumable(
                     layout: game_textures.mine_atlas.clone(),
                     index: 1,
                 },
-                ProximityMine {
+                ProximityMineAnimation {
                     on_timer: Timer::from_seconds(0.1, TimerMode::Once),
                     off_timer: Timer::from_seconds(2.0, TimerMode::Once),
                     light_on: false
+                },
+                ProximityMine {
+                    trigger_radius: 25.0,
+                    explosion_radius: 50.0,
+                    damage: Damage {
+                        kind: DamageKind::Instant(200.0),
+                        source: DamageSource::Consumable(Consumable::ProximityMine),
+                        damage_type: DamageType::Kinetic,
+                    }
                 },
                 RenderLayers::layer(1)
             )).id();
@@ -88,7 +97,15 @@ fn spawn_consumable(
                     },
                     ..default()
                 },
-                RotorBlades,
+                RotorBlades {
+                    radius: 25.0,
+                    damage: Damage {
+                        kind: DamageKind::OverTime { dps: 100.0, duration: 0.1 },
+                        source: DamageSource::Consumable(Consumable::RotorBlades),
+                        damage_type: DamageType::Kinetic
+                    },
+                    durability: 200.0,
+                },
                 RenderLayers::layer(1)
             )).id();
 
@@ -161,7 +178,7 @@ fn spawn_turret(
                 AttackDelay(Timer::from_seconds(0.2, TimerMode::Repeating)),
                 TargetingTurret {
                     targeting_radius: 200.0,
-                    mode: TargetingMode::Last,
+                    mode: TargetingMode::First,
                     ..default()
                 },
                 ProjectileTurret,

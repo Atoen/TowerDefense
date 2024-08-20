@@ -1,6 +1,6 @@
 
 // use bevy::{math::Vec3, prelude::*, sprite::{MaterialMesh2dBundle, Mesh2dHandle}, window::{PrimaryWindow, Window}};
-// use bevy_prng::ChaCha8Rng;
+// use bevy_prng::WyRand;
 // use bevy_rand::prelude::GlobalEntropy;
 // use rand_core::RngCore;
 
@@ -261,7 +261,7 @@
 // pub fn idle_rotation_system(
 //     time: Res<Time>,
 //     mut query: Query<(&mut Transform, &mut IdleRotation, Option<&RotationSpeed>)>,
-//     mut rng: ResMut<GlobalEntropy<ChaCha8Rng>>
+//     mut rng: ResMut<GlobalEntropy<WyRand>>
 // ) {
 //     for (
 //         mut transform,
@@ -366,7 +366,7 @@
 //     mut materials: ResMut<Assets<ColorMaterial>>,
 //     mut meshes: ResMut<Assets<Mesh>>,
 //     mut turrets: Query<(&TargetingTurret, &Transform, Option<&mut AttackDelay>, Option<&SpawnOffset>, Option<&AttackDispersion>), With<ProjectileTurret>>,
-//     mut rng: ResMut<GlobalEntropy<ChaCha8Rng>>
+//     mut rng: ResMut<GlobalEntropy<WyRand>>
 // ) {
 //     for (
 //         turret,

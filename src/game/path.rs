@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{default, time::Duration};
 
 use bevy_tweening::{lens::TransformScaleLens, Animator, EaseFunction, RepeatCount, RepeatStrategy, Tween};
 use game::GameLayerOrder;
@@ -13,7 +13,15 @@ pub struct PathFollower {
     pub speed: f32,
     pub current_segment: usize,
     pub t: f32,
-    pub total_progress: f32
+    pub total_progress: f32,
+    pub direction: PathDirection
+}
+
+#[derive(Default, PartialEq, Eq, Clone, Copy)]
+pub enum PathDirection {
+    #[default]
+    Horizontal,
+    Vertical
 }
 
 #[derive(Resource)]
@@ -140,6 +148,12 @@ fn move_along_path(
             let start = cell_to_world_pos(&path.points[follower.current_segment]);
             let end = cell_to_world_pos(&path.points[follower.current_segment + 1]);
 
+            let distance = end - start;
+            let direction = if distance.x.abs() >= distance.y.abs() {
+                PathDirection::Horizontal
+            } else { PathDirection::Vertical };
+
+            follower.direction = direction;
             follower.t += (follower.speed * time.delta_seconds()) / GRID_CELL_SIZE as f32;
 
             let position = start.lerp(end, follower.t);

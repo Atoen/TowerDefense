@@ -285,7 +285,7 @@ const MAX_RANDOM_ROTATION_ANGLE: f32 = std::f32::consts::FRAC_PI_2;
 pub fn idle_rotation_system(
     time: Res<Time>,
     mut query: Query<(&mut Transform, &mut IdleRotation, Option<&RotationSpeed>)>,
-    mut rng: ResMut<GlobalEntropy<ChaCha8Rng>>
+    mut rng: ResMut<GlobalEntropy<WyRand>>
 ) {
     for (
         mut transform,
@@ -389,7 +389,7 @@ pub fn projectile_turret_attack_system(
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut turrets: Query<(&TargetingTurret, &Transform, Option<&mut AttackDelay>, Option<&ProjectileSpawnOffset>, Option<&AttackDispersion>), With<ProjectileTurret>>,
-    mut rng: ResMut<GlobalEntropy<ChaCha8Rng>>
+    mut rng: ResMut<GlobalEntropy<WyRand>>
 ) {
     for (
         turret,

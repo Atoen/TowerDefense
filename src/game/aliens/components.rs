@@ -39,8 +39,8 @@ impl Alien {
 
     pub fn add_damage(&mut self, damage: &Damage) {
 
-        match damage.timing {
-            DamageTiming::Instant(instant_damage) => {
+        match damage.kind {
+            DamageKind::Instant(instant_damage) => {
     
                 if let Some(damage_from_source) = self.damages_to_apply.get_mut(&damage.source) {
                     if let DamageToApplyTiming::Instant(ref mut dmg) = damage_from_source.timing {
@@ -57,7 +57,7 @@ impl Alien {
                 }
             }
 
-            DamageTiming::OverTime { dps, duration } => {
+            DamageKind::OverTime { dps, duration } => {
                 self.damages_to_apply.insert(
                     damage.source,
                     DamageToApply {

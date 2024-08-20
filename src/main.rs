@@ -11,7 +11,7 @@ use bevy::render::RenderPlugin;
 use bevy::render::settings::{Backends, RenderCreation, WgpuSettings};
 use bevy::sprite::Anchor;
 use bevy::window::PrimaryWindow;
-use bevy_prng::ChaCha8Rng;
+use bevy_prng::WyRand;
 use bevy_rand::plugin::EntropyPlugin;
 use bevy_tweening::TweeningPlugin;
 use strum::IntoEnumIterator;
@@ -117,7 +117,7 @@ fn main() {
             level: bevy::log::Level::INFO,
             ..default()
         }))
-        .add_plugins(EntropyPlugin::<ChaCha8Rng>::default())
+        .add_plugins(EntropyPlugin::<WyRand>::default())
         .add_plugins(UiPlugin)
         .add_plugins(bevy_framepace::FramepacePlugin)
         .add_plugins(FrameTimeDiagnosticsPlugin)

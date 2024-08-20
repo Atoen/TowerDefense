@@ -1,5 +1,6 @@
 use ::core::f32;
 
+use bevy_prng::WyRand;
 use bevy_rand::prelude::GlobalEntropy;
 use rand::RngCore;
 
@@ -24,14 +25,13 @@ pub fn flag_idle_turrets(
     }
 }
 
-const ROTATION_EPSILON: f32 = 0.0001;
+const ROTATION_EPSILON: f32 = 0.001;
 const DEFAULT_ROTATION_SPEED: f32 = std::f32::consts::PI;
-const MAX_RANDOM_ROTATION_ANGLE: f32 = std::f32::consts::FRAC_PI_2;
 
 pub fn idle_rotation_system(
     time: Res<Time>,
     mut query: Query<(&mut Transform, &mut IdleRotation, &mut TargetingTurret, Option<&RotationSpeed>)>,
-    mut rng: ResMut<GlobalEntropy<ChaCha8Rng>>
+    mut rng: ResMut<GlobalEntropy<WyRand>>
 ) {
     for (
         mut transform,
@@ -47,25 +47,40 @@ pub fn idle_rotation_system(
 
         let timer = &mut idle_rotation.rotation_timer;
         if timer.tick(time.delta()).finished() {
-            let random_rotation = rng.next_u32();
-            let random_angle = (random_rotation as f32 / u32::MAX as f32) * MAX_RANDOM_ROTATION_ANGLE - MAX_RANDOM_ROTATION_ANGLE / 2.;
+
+            let random = rng.next_u32();
+            let random_rotation = map_u32_to_range(random, f32::consts::FRAC_PI_3, f32::consts::PI);
+
+            let random_angle = if random % 2 == 0 { random_rotation } else { -random_rotation };
 
             idle_rotation.target_angle = current_angle + random_angle;
             continue;
         }
 
         let angle_diff = shortest_angle_diff(current_angle, idle_rotation.target_angle);
+        
+        if angle_diff.abs() >= f32::consts::PI {
+            warn!("Angle diff: {}", angle_diff);
+        }
         if angle_diff.abs() < ROTATION_EPSILON {
             continue;
         }
 
         let rotation_speed = rotation_speed.map_or(DEFAULT_ROTATION_SPEED, |rs| rs.0);
 
-        let rotation_step = rotation_speed * time.delta_seconds();
+        let rotation_step = rotation_speed * time.delta_seconds() * angle_diff.signum();
         let new_angle = turret.current_angle + smaller_magnitude(rotation_step, angle_diff);
 
         transform.rotation = Quat::from_rotation_z(new_angle);
         turret.current_angle = new_angle;
+    }
+}
+
+fn get_target_weight(alien: &Alien, targeting_mode: &TargetingMode) -> f32 {
+    match targeting_mode {
+        TargetingMode::First => alien.path_progress,
+        TargetingMode::Last => -alien.path_progress,
+        TargetingMode::Strongest => alien.max_health,
     }
 }
 
@@ -74,14 +89,6 @@ pub fn turret_targeting_system(
     mut turrets: Query<(&mut TargetingTurret, &mut Transform, &GlobalTransform, Option<&RotationSpeed>), Without<Alien>>,
     aliens: Query<(Entity, &GlobalTransform, &Alien)>
 ) {
-    fn get_target_weight(alien: &Alien, targeting_mode: &TargetingMode) -> f32 {
-        match targeting_mode {
-            TargetingMode::First => alien.path_progress,
-            TargetingMode::Last => -alien.path_progress,
-            TargetingMode::Strongest => alien.max_health,
-        }
-    }
-
     for (
         mut turret,
         mut turret_transform,
@@ -102,6 +109,8 @@ pub fn turret_targeting_system(
                 if displacement.length_squared() > turret_radius_2 {
                     turret.current_target = None;
                 }
+            } else {
+                turret.current_target = None;
             }
         }
 
@@ -138,22 +147,93 @@ pub fn turret_targeting_system(
         }
 
         if turret.current_target.is_none() { 
-            return
+            continue
         }
 
         let target_angle = displacement.y.atan2(displacement.x) - f32::consts::FRAC_PI_2;
         let angle_diff = shortest_angle_diff(turret.current_angle, target_angle);
 
+        if angle_diff.abs() >= f32::consts::PI {
+            warn!("Angle diff: {}", angle_diff);
+        }
+
         if angle_diff.abs() < ROTATION_EPSILON {
-            continue;
+            continue
         }
 
         let rotation_speed = rotation_speed.map_or(DEFAULT_ROTATION_SPEED, |rs| rs.0);
 
-        let rotation_step = rotation_speed * time.delta_seconds();
+        let rotation_step = rotation_speed * time.delta_seconds() * angle_diff.signum();
         let new_angle = turret.current_angle + smaller_magnitude(rotation_step, angle_diff);
 
         turret_transform.rotation = Quat::from_rotation_z(new_angle);
         turret.current_angle = new_angle;
+    }
+}
+
+pub fn projectile_turret_attack_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    game_textures: Res<GameTextures>,
+    mut rng: ResMut<GlobalEntropy<WyRand>>,
+    mut turrets: Query<(&TargetingTurret, &GlobalTransform, Option<&mut AttackDelay>, Option<&ProjectileSpawnOffset>, Option<&AttackDispersion>), With<ProjectileTurret>>,
+) {
+    for (
+        turret,
+        turret_transform,
+        attack_delay,
+        spawn_offset,
+        attack_dispersion
+    ) in &mut turrets {
+        if turret.current_target.is_none() {
+            continue
+        }
+
+        if let Some(mut attack_delay) = attack_delay {
+            if !attack_delay.0.tick(time.delta()).finished() {
+                continue
+            }
+        }
+
+        let direction = match attack_dispersion {
+            Some(dispersion) => {
+                let random_angle = map_u32_to_range(rng.next_u32(), -dispersion.0, dispersion.0);
+                turret.current_angle + random_angle
+            }
+            None => turret.current_angle
+        };
+
+        let rotation = Quat::from_rotation_z(direction);
+
+        let offset = match spawn_offset {
+            Some(offset) => {
+                rotation * offset.0
+            }
+            None => Vec3::ZERO,
+        };
+
+        let spawn_translation = turret_transform.translation() + offset;
+
+        commands.spawn((
+            Projectile {
+                radius: 1.0,
+                damage: Damage {
+                    kind: DamageKind::Instant(25.0),
+                    source: DamageSource::Turret(Turret::PulseBlaster), 
+                    damage_type: DamageType::Kinetic 
+                },
+                pierce: Pierce::ONE,
+            },
+            SpriteBundle {
+                texture: game_textures.bullet.clone(),
+                transform: Transform {
+                    translation: spawn_translation,
+                    rotation,
+                    ..default()
+                },
+                ..default()
+            },
+            RenderLayers::layer(1)
+        ));
     }
 }

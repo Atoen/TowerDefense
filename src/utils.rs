@@ -164,9 +164,11 @@ pub fn smaller_magnitude(a: f32, b: f32) -> f32 {
 }
 
 pub fn shortest_angle_diff(from: f32, to: f32) -> f32 {
-    let diff = (to - from).rem_euclid(std::f32::consts::TAU);
+    let diff = (to - from).rem_euclid(2.0 * std::f32::consts::PI);
     if diff > std::f32::consts::PI {
-        diff - std::f32::consts::TAU
+        diff - 2.0 * std::f32::consts::PI
+    } else if diff < -std::f32::consts::PI {
+        diff + 2.0 * std::f32::consts::PI
     } else {
         diff
     }

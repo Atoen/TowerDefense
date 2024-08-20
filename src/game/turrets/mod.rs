@@ -70,6 +70,49 @@ fn projectile_system(
     }
 }
 
+fn consumable_damage_system(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut aliens: Query<(&GlobalTransform, &mut Alien)>,
+    mut consumables: Query<(Entity, &Transform, AnyOf<(&mut RotorBlades, &ProximityMine)>)>
+) {
+    'consumables: for (consumable_entity, consumable_transform, mut blades_or_mine) in &mut consumables {
+        for (alien_transform, mut alien) in &mut aliens {
+
+            let distance_2 = alien_transform.translation().distance_squared(consumable_transform.translation);
+
+            match blades_or_mine {
+                (None, Some(mine)) => {
+                    if mine.trigger_radius * mine.trigger_radius >= distance_2 {
+                        commands.entity(consumable_entity).despawn();
+
+                        continue 'consumables;
+                    }
+                }
+                (Some(ref mut blades), None) => {
+                    if blades.durability <= 0.0 {
+                        commands.entity(consumable_entity).despawn();
+
+                        continue 'consumables;
+                    }
+
+                    if blades.radius * blades.radius >= distance_2 {
+                        alien.add_damage(&blades.damage);
+                        blades.durability -= time.delta_seconds();
+
+                        if blades.durability <= 0.0 {
+                            commands.entity(consumable_entity).despawn_recursive();
+
+                            continue 'consumables;
+                        }
+                    }
+                }
+                _ => { }
+            }
+        }
+    } 
+}
+
 pub struct TurretsPlugin;
 
 impl Plugin for TurretsPlugin {
@@ -77,7 +120,9 @@ impl Plugin for TurretsPlugin {
         app
             .add_systems(Update, (
                 projectile_system,
-                turret_targeting_system
+                turret_targeting_system,
+                projectile_turret_attack_system,
+                consumable_damage_system
             ).run_if(in_state(GameState::AttackWave)))
 
             .add_systems(Update, (

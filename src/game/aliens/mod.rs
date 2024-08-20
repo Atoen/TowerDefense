@@ -1,6 +1,7 @@
 pub mod components;
 use std::time::Duration;
 
+use bevy::render::view::visibility;
 use bevy_tweening::{lens::TransformScaleLens, Animator, AnimatorState, EaseFunction, Tween};
 pub use components::*;
 
@@ -10,15 +11,37 @@ pub use wave::*;
 
 use crate::*;
 
-pub enum Enemy {
-    
+#[derive(Component, Default)]
+pub struct ZigZag {
+    pub unwanted_offset: Vec2,
+    pub distance_moved: f32,
+    pub speed: f32,
+    pub range: f32,
+    pub moving_positive: bool,
+    pub move_direction: PathDirection,
+}
+
+pub enum ZigZagSpeed {
+    Slow,
+    Medium,
+    Fast
+}
+
+impl ZigZag {
+    pub fn new(path_follower_speed: f32, zigzag_speed: ZigZagSpeed, range: f32) -> Self {
+        Self { 
+            ..default()
+        }
+    }
 }
 
 #[derive(Component)]
 struct HealthBar {
-    alien_entity: Entity,
-    max_health: f32,
+    alien_entity: Entity
 }
+
+#[derive(Component)]
+struct HealthBarBackground;
 
 #[derive(Resource)]
 struct AlienSpawnTimer(Timer);
@@ -67,6 +90,8 @@ fn alien_spawn_animation_system(
             ..default()
         },
         Animator::new(tween),
+        DamageResistant(0.1),
+        KineticDamageResistant(0.2),
         SpawningAlien(Timer::from_seconds(0.5, TimerMode::Once)),
         RenderLayers::layer(1)
     ));
@@ -92,18 +117,59 @@ fn after_alien_spawn_system(
                 ..default()
             },
             PathFollower {
-                speed: 100.0,
+                speed: 50.0,
                 ..default()
             },
             CoreDamage(20.0),
         )).id();
         
-        commands.entity(alien_entity)
+        let alien = commands.entity(alien_entity)
             .remove::<(Animator<Transform>, SpawningAlien)>()
             .insert((
                 Alien::new(100.0),
+                ZigZag {
+                    speed: 20.0,
+                    range: 10.0,
+                    ..default()
+                }
             )
-        ).set_parent(parent);
+        ).set_parent(parent).id();
+
+        let healthbar_backround = commands.spawn((
+            SpriteBundle {
+                sprite: Sprite {
+                    color: Color::BLACK,
+                    custom_size: Some(Vec2::new(40.0, 5.0)),
+                    ..default()
+                },
+                transform: Transform {
+                    translation: Vec3::new(0.0, 30.0, GameLayer::ALIEN_HEALTH_BAR),
+                    ..default()
+                },
+                visibility: Visibility::Hidden,
+                ..default()
+            },
+            HealthBarBackground,
+            RenderLayers::layer(1)
+        )).set_parent(alien).id();
+
+        commands.spawn((
+            SpriteBundle {
+                sprite: Sprite {
+                    color: Color::GREEN,
+                    custom_size: Some(Vec2::new(40.0, 5.0)),
+                    ..default()
+                },
+                transform: Transform {
+                    translation: Vec3::new(0.0, 0.0, 1.0),
+                    ..default()
+                },
+                visibility: Visibility::Hidden,
+                ..default()
+            },
+            HealthBar { alien_entity: alien },
+            RenderLayers::layer(1)
+        )).set_parent(healthbar_backround);
     }
 }
 
@@ -111,7 +177,7 @@ fn after_alien_spawn_system(
 fn take_damage(
     mut commands: Commands,
     time: Res<Time>,
-    mut query: Query<(&Parent, &mut Alien, Option<&DamageResistant>, Option<&KineticDamageResistant>, Option<&EnergyDamageResistant>, Option<&ChemicalDamageResistant>)>
+    mut aliens: Query<(&Parent, &mut Alien, Option<&DamageResistant>, Option<&KineticDamageResistant>, Option<&EnergyDamageResistant>, Option<&ChemicalDamageResistant>)>
 ) {
     for (
         parent,
@@ -120,7 +186,7 @@ fn take_damage(
         kinetic_damage_resistant,
         energy_damage_resistant,
         chemical_damage_resistant
-    ) in &mut query {
+    ) in &mut aliens {
 
         let base_vulnerability = 1.0 - damage_resistant.map_or(0.0, |r| r.0);
 
@@ -167,15 +233,53 @@ fn take_damage(
 }
 
 fn update_healthbar(
-    mut healthbar_query: Query<(&HealthBar, &mut Sprite)>,
+    mut healthbar_query: Query<(&Parent, &HealthBar, &mut Transform, &mut Sprite, &mut Visibility), Without<HealthBarBackground>>,
+    mut healthbar_background: Query<&mut Visibility, With<HealthBarBackground>>,
     alien_query: Query<&Alien>,
 ) {
-    for (healthbar, mut sprite) in healthbar_query.iter_mut() {
-        if let Ok(alien) = alien_query.get(healthbar.alien_entity) {
+    for (
+        parent,
+        healthbar,
+        mut transform,
+        mut sprite,
+        mut visibility) in &mut healthbar_query {
 
-            let health_percentage = alien.health / healthbar.max_health;
-            if let Some(custom_size) = &mut sprite.custom_size {
-                custom_size.x *= health_percentage;
+        if let Ok(alien) = alien_query.get(healthbar.alien_entity) {
+            let health_percentage = alien.health / alien.max_health;
+
+            if health_percentage == 1.0 {
+                if *visibility == Visibility::Visible {
+                    *visibility = Visibility::Hidden;
+                    
+                    if let Ok(mut background) = healthbar_background.get_mut(parent.get()) {
+                        *background = Visibility::Hidden;
+                    }
+                }
+            } else {
+                if *visibility == Visibility::Hidden {
+                    *visibility = Visibility::Visible; 
+
+                    if let Ok(mut background) = healthbar_background.get_mut(parent.get()) {
+                        *background = Visibility::Visible;
+                    }
+                }
+
+                transform.scale.x = health_percentage;
+                transform.translation.x = 0.0 - (1.0 - health_percentage) * (sprite.custom_size.unwrap().x / 2.0);
+
+                sprite.color = if health_percentage >= 0.9 {
+                    Color::srgb(0.0, 1.0, 0.0) 
+                } else if health_percentage >= 0.5 {
+                    Color::srgb(
+                        1.0 - (health_percentage - 0.5) / (0.9 - 0.5),
+                        1.0,
+                        0.0)
+                } else {
+                    Color::srgb(
+                        1.0,
+                        health_percentage / 0.5,
+                        0.0)
+                }
             }
         }
     }
@@ -192,6 +296,57 @@ fn update_path_progress(
     }
 }
 
+fn zigzag_movement_system(
+    time: Res<Time>,
+    path_followers: Query<&PathFollower>,
+    mut query: Query<(&mut ZigZag, &Parent, &mut Transform), With<Alien>>
+) {
+    fn offset_step(delta: f32, offset: f32) -> f32 {
+        let delta_step = -delta * offset.signum();
+        smaller_magnitude(delta_step, -offset)
+    }
+
+    for (mut zigzag, parent, mut transform) in &mut query {
+        
+        if let Ok(follower) = path_followers.get(parent.get()) {
+            let sign = if zigzag.moving_positive { 1.0 } else { -1.0 };
+            let delta = zigzag.speed * time.delta_seconds();
+
+            let translation = &mut transform.translation;
+
+            if zigzag.move_direction != follower.direction {
+                zigzag.unwanted_offset = translation.truncate();
+                zigzag.move_direction = follower.direction;
+                zigzag.distance_moved = 0.0;
+            }
+
+            match follower.direction {
+                PathDirection::Horizontal => {
+                    translation.y += delta * sign;
+
+                    let step = offset_step(delta, zigzag.unwanted_offset.x);
+
+                    zigzag.unwanted_offset.x += step;
+                    translation.x += step;
+                }
+                PathDirection::Vertical => {
+                    translation.x += delta * sign;
+
+                    let step = offset_step(delta, zigzag.unwanted_offset.y);
+
+                    zigzag.unwanted_offset.y += step;
+                    translation.y += step;
+                }
+            }
+
+            zigzag.distance_moved += delta;
+            if zigzag.distance_moved >= zigzag.range {
+                zigzag.moving_positive = !zigzag.moving_positive;
+                zigzag.distance_moved = -zigzag.range;
+            }
+        }
+    }
+}
 
 pub struct AliensPlugin;
 
@@ -206,7 +361,8 @@ impl Plugin for AliensPlugin {
                 after_alien_spawn_system,
                 take_damage,
                 update_healthbar,
-                update_path_progress
+                update_path_progress,
+                zigzag_movement_system
             )
                 .run_if(in_state(GameState::AttackWave)))
 

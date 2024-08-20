@@ -73,8 +73,13 @@ pub enum Pierce {
     Finite(u32)
 }
 
+impl Pierce {
+    pub const ONE: Pierce = Pierce::Finite(1);
+}
+
+
 pub struct Damage {
-    pub timing: DamageTiming,
+    pub kind: DamageKind,
     pub source: DamageSource,
     pub damage_type: DamageType
 }
@@ -86,15 +91,15 @@ pub enum DamageSource {
 }
 
 #[derive(Clone, Copy)]
-pub enum DamageTiming {
+pub enum DamageKind {
     Instant(f32),
     OverTime { dps: f32, duration: f32 }
 }
 
 #[derive(Clone, Copy)]
 pub enum DamageType {
-    Energy,
     Kinetic,
+    Energy,
     Chemical,
     True
 }

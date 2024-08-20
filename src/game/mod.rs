@@ -54,6 +54,8 @@ impl GameLayer {
     const TURRET: f32 = 13.0;
 
     const ALIEN: f32 = 14.0;
+    const ALIEN_HEALTH_BAR: f32 = 14.1;
+
     const PROJECTILE: f32 = 15.0;
 
     const DEBUG_TARGET: f32 = 9.1;
@@ -135,9 +137,9 @@ fn constant_rotation_system(
     }
 }
 
-fn mine_system(
+fn proximity_mine_animation_system(
     time: Res<Time>,
-    mut query: Query<(&mut ProximityMine, &mut TextureAtlas)>
+    mut query: Query<(&mut ProximityMineAnimation, &mut TextureAtlas)>
 ) {
     for (mut mine, mut atlas) in &mut query {
         if mine.light_on {
@@ -171,7 +173,7 @@ impl Plugin for GamePlugin {
 
             .add_systems(Update, (
                 constant_rotation_system,
-                mine_system,
+                proximity_mine_animation_system,
                 build_clicked_system
                     .run_if(on_event::<BuildEvent>())
             ).run_if(in_state(AppState::InGame)))

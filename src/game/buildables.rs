@@ -3,6 +3,8 @@ use std::fmt;
 use bevy::{prelude::{Component, Resource}, time::Timer};
 use strum_macros::{Display, EnumCount, EnumIter};
 
+use super::Damage;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Buildable {
     Standalone(StandaloneBuildable),
@@ -77,14 +79,25 @@ pub enum Consumable {
 pub struct SelectedBuildable(pub Option<Buildable>);
 
 #[derive(Component)]
-pub struct ProximityMine {
+pub struct ProximityMineAnimation {
     pub light_on: bool,
     pub on_timer: Timer,
     pub off_timer: Timer
 }
 
 #[derive(Component)]
-pub struct RotorBlades;
+pub struct ProximityMine {
+    pub trigger_radius: f32,
+    pub explosion_radius: f32,
+    pub damage: Damage
+}
+
+#[derive(Component)]
+pub struct RotorBlades {
+    pub radius: f32,
+    pub damage: Damage,
+    pub durability: f32
+}
 
 #[derive(Component)]
 pub struct TurretComponent(pub Turret);
