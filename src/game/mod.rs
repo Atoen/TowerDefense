@@ -1,8 +1,5 @@
 pub mod cursor_translation;
-use std::time::Duration;
 
-use bevy::{ecs::query, sprite::{MaterialMesh2dBundle, Mesh2dHandle}};
-use bevy_tweening::{lens::TransformScaleLens, Animator, EaseFunction, RepeatCount, RepeatStrategy, Tween};
 pub use cursor_translation::*;
 
 pub mod cell_selecting;
@@ -20,11 +17,17 @@ pub use spawning_buildings::*;
 pub mod path;
 pub use path::*;
 
+pub mod explosion;
+pub use explosion::*;
+
 pub mod aliens;
 pub use aliens::*;
 
 pub mod turrets;
 pub use turrets::*;
+
+pub mod data_tables;
+pub use data_tables::*;
 
 use crate::*;
 
@@ -43,25 +46,28 @@ pub struct GameLayer;
 
 impl GameLayer {
 
-    const SELECTED_CELL: f32 = 100.0;
+    pub const SELECTED_CELL: f32 = 100.0;
+    pub const UPGRADE_ARROW: f32 = 99.0;
 
-    const PATH_DOT: f32 = 8.0;
-    const PATH_ALIEN: f32 = 9.0;
+    pub const PATH_DOT: f32 = 8.0;
+    pub const PATH_ALIEN: f32 = 9.0;
 
-    const STANDALONE: f32 = 10.0;
-    const PORTAL: f32 = 11.0;
-    const TURRET_RING: f32 = 12.0;
-    const TURRET: f32 = 13.0;
+    pub const STANDALONE: f32 = 10.0;
+    pub const PORTAL: f32 = 11.0;
+    pub const TURRET_RING: f32 = 12.0;
+    pub const TURRET: f32 = 13.0;
+    pub const EXPLOSION_RANGE: f32 = 7.0;
+    pub const RANGE: f32 = 7.5;
 
-    const ALIEN: f32 = 14.0;
-    const ALIEN_HEALTH_BAR: f32 = 14.1;
+    pub const ALIEN: f32 = 14.0;
+    pub const ALIEN_HEALTH_BAR: f32 = 14.1;
 
-    const PROJECTILE: f32 = 15.0;
+    pub const PROJECTILE: f32 = 15.0;
 
-    const DEBUG_TARGET: f32 = 9.1;
+    pub const DEBUG_TARGET: f32 = 9.1;
 }
 
-trait GameLayerOrder {
+pub trait GameLayerOrder {
     fn on(self, layer: f32) -> Vec3;
 }
 
@@ -77,7 +83,6 @@ fn setup_game(
     mut commands: Commands,
     game_textures: Res<GameTextures>,
     mut grid: ResMut<GameGrid>,
-    mut writer: EventWriter<PathChangedEvent>
 ) {
     debug!("Setting up game level...");
 
@@ -121,7 +126,7 @@ fn setup_game(
     }
 
     if let PathState::Updated = grid.calculate_path() {
-        writer.send(PathChangedEvent);
+        commands.trigger(PathChangedEvent);
         debug!("Level set up complete");
     } else {
         error!("Failed to set up level!");
@@ -158,6 +163,87 @@ fn proximity_mine_animation_system(
     } 
 }
 
+fn consumable_damage_system(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut aliens: Query<(&GlobalTransform, &mut Alien)>,
+    mut consumables: Query<(Entity, &Transform, &CellEntity, AnyOf<(&mut RotorBlades, &ProximityMine)>)>,
+    mut grid: ResMut<GameGrid>
+) {
+    'consumables: for (consumable_entity, consumable_transform, cell, mut blades_or_mine) in &mut consumables {
+        for (alien_transform, mut alien) in &mut aliens {
+
+            let distance_2 = alien_transform.translation().distance_squared(consumable_transform.translation);
+
+            match blades_or_mine {
+                (None, Some(mine)) => {
+                    if mine.trigger_radius * mine.trigger_radius >= distance_2 {
+                        
+                        commands.entity(consumable_entity).despawn();
+                        if let Some(cell) = grid.get_cell_mut(&cell.pos) { cell.remove_standalone() }
+
+                        commands.spawn(
+                            ExplosionToSpawn {
+                                damage: Some(mine.damage),
+                                falloff: Some(DamageFalloff::Linear { min_damage_percent: 0.5 }),
+                                radius: mine.explosion_radius,
+                                position: consumable_transform.translation,
+                                animation: AoEAnimation {
+                                    timer: Timer::from_seconds(1., TimerMode::Once),
+                                    despawn_on_end: true,
+                                    radius_animation: Some(RadiusAnimation::FromBaseRadius { grow_speed: 1.0 }),
+                                    color_animation: Some(ColorAnimation {
+                                        start_color: Color::srgb(0.3, 0.8, 1.0),
+                                        end_color: Color::srgb(0.4, 0.0, 1.0),
+                                        alpha_factor: None,
+                                        animate_alpha: true
+                                    })
+                                }
+                            }
+                        );
+
+                        continue 'consumables;
+                    }
+                }
+                (Some(ref mut blades), None) => {
+                    if blades.radius * blades.radius >= distance_2 {
+                        alien.add_damage(&blades.damage);
+                        blades.durability -= time.delta_seconds();
+
+                        if blades.durability <= 0.0 {
+                            commands.entity(consumable_entity).despawn_recursive();
+                            if let Some(cell) = grid.get_cell_mut(&cell.pos) { cell.remove_standalone() }
+
+                            commands.spawn(
+                                ExplosionToSpawn {
+                                    damage: None,
+                                    falloff: None,
+                                    radius: 20.0,
+                                    position: consumable_transform.translation,
+                                    animation: AoEAnimation {
+                                        timer: Timer::from_seconds(0.5, TimerMode::Once),
+                                        despawn_on_end: true,
+                                        radius_animation: Some(RadiusAnimation::FromBaseRadius { grow_speed: 0.5 }),
+                                        color_animation: Some(ColorAnimation {
+                                            start_color: Color::srgb(1.0, 0.5, 0.0),
+                                            end_color: Color::srgb(0.2, 0.2, 0.2),
+                                            alpha_factor: None,
+                                            animate_alpha: true
+                                        })
+                                    }
+                                }
+                            );
+                            
+                            continue 'consumables;
+                        }
+                    }
+                }
+                _ => { }
+            }
+        }
+    } 
+}
+
 pub struct GamePlugin;
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
@@ -168,16 +254,22 @@ impl Plugin for GamePlugin {
                 CellSelectionPlugin,
                 CursorTranslationPlugin,
                 AliensPlugin,
-                TurretsPlugin
+                TurretsPlugin,
+                ExplosionPlugin
             ))
 
             .add_systems(Update, (
                 constant_rotation_system,
                 proximity_mine_animation_system,
-                build_clicked_system
-                    .run_if(on_event::<BuildEvent>())
             ).run_if(in_state(AppState::InGame)))
 
-            .add_systems(OnEnter(AppState::InGame), setup_game);
+            .add_systems(Update, consumable_damage_system
+                .run_if(in_state(GameState::AttackWave)))
+
+            .add_systems(OnEnter(AppState::InGame), setup_game)
+            
+            .observe(build_clicked_trigger)
+
+            ;
     }
 }

@@ -1,4 +1,3 @@
-use components::turrets::*;
 use game::GameLayerOrder;
 
 use crate::*;
@@ -9,37 +8,44 @@ pub struct BuildEvent {
     pub cell_pos: UVec2
 }
 
-pub(crate) fn build_clicked_system(
-    mut commands: Commands,
-    mut reader: EventReader<BuildEvent>,
+pub(crate) fn build_clicked_trigger(
+    trigger: Trigger<BuildEvent>,
     game_textures: Res<GameTextures>,
+    mut commands: Commands,
     mut grid: ResMut<GameGrid>,
-    mut cash_event_writer: EventWriter<CashChangedEvent>
+    mut bottom_row: ResMut<BottomRowContent>
 ) {
-    for BuildEvent { cell_pos, buildable } in reader.read() {
-        if !grid.can_place(cell_pos, buildable) {
-            info!("Can't place {} there", buildable);
-            continue;
-        }
-        
-        let Some(cell) = grid.get_cell_mut(cell_pos) else { continue };
+    let BuildEvent { cell_pos, buildable } = trigger.event();
 
-        let price = match buildable {
-            Buildable::Standalone(StandaloneBuildable::Module) => {
-                warn!("Module building should be handled before!"); 0
-            }
-            Buildable::Standalone(StandaloneBuildable::Consumable(consumable)) => {
-                spawn_consumable(cell, consumable, &mut commands, &game_textures)
-            }
-            Buildable::Turret(turret) => {
-                spawn_turret(cell, turret, &mut commands, &game_textures)
-            }
-        };
-
-        info!("Placed {} at {} for {}$", buildable, cell_pos, price);
-
-        cash_event_writer.send(CashChangedEvent { change: -price });
+    if !grid.can_place(cell_pos, *buildable) {
+        info!("Can't place {} there", buildable);
+        commands.trigger(InfoMessageAddedEvent(format!("Can't place {} there", buildable)));
+        return;
     }
+    
+    let Some(cell) = grid.get_cell_mut(cell_pos) else { return };
+
+    let price = match buildable {
+        Buildable::Standalone(StandaloneBuildable::Module) => {
+            warn!("Module building should be handled before!");
+            return;
+        }
+        Buildable::Standalone(StandaloneBuildable::Consumable(consumable)) => {
+            spawn_consumable(cell, consumable, &mut commands, &game_textures)
+        }
+        Buildable::Turret(turret) => {
+            spawn_turret(cell, turret, &mut commands, &game_textures)
+        }
+    };
+
+    info!("Placed {} at {} for {}$", buildable, cell_pos, price);
+
+    commands.trigger(CashChangedEvent { change: -price });
+
+    *bottom_row = BottomRowContent::Selector;
+    commands.trigger(BottomRowContentChangedEvent(*bottom_row));
+
+    commands.trigger(DeselectCell);
 }
 
 fn spawn_consumable(
@@ -72,13 +78,16 @@ fn spawn_consumable(
                     light_on: false
                 },
                 ProximityMine {
-                    trigger_radius: 25.0,
-                    explosion_radius: 50.0,
+                    trigger_radius: get_mine_trigger_radius(),
+                    explosion_radius: get_mine_explosion_radius(),
                     damage: Damage {
                         kind: DamageKind::Instant(200.0),
                         source: DamageSource::Consumable(Consumable::ProximityMine),
-                        damage_type: DamageType::Kinetic,
+                        damage_type: DamageType::Energy,
                     }
+                },
+                CellEntity {
+                    pos: cell.position
                 },
                 RenderLayers::layer(1)
             )).id();
@@ -98,15 +107,18 @@ fn spawn_consumable(
                     ..default()
                 },
                 RotorBlades {
-                    radius: 25.0,
+                    radius: get_rotor_blades_radius(),
                     damage: Damage {
                         kind: DamageKind::OverTime { dps: 100.0, duration: 0.1 },
                         source: DamageSource::Consumable(Consumable::RotorBlades),
                         damage_type: DamageType::Kinetic
                     },
-                    durability: 200.0,
+                    durability: 100.0,
                 },
-                RenderLayers::layer(1)
+                RenderLayers::layer(1),
+                CellEntity {
+                    pos: cell.position
+                },
             )).id();
 
             commands.spawn((
@@ -152,7 +164,7 @@ fn spawn_turret(
     let (entity, price) = match turret {
         Turret::PulseBlaster => {
 
-            let base_entity = commands.spawn((
+            let parent = commands.spawn((
                 SpriteBundle {
                     texture: game_textures.turret_ring_texture.clone(),
                     transform: Transform {
@@ -168,16 +180,19 @@ fn spawn_turret(
                 },
                 TextureAtlas {
                     layout: game_textures.turret_ring_atlas.clone(),
-                    index: 3,
+                    index: 0,
+                },
+                TurretLevel::default(),
+                CellEntity {
+                    pos: cell.position
                 },
                 RenderLayers::layer(1)
             )).id();
 
-            let turret_entity = commands.spawn((
+            commands.spawn((
                 AttackDispersion(std::f32::consts::PI / 16.0),
                 AttackDelay(Timer::from_seconds(0.2, TimerMode::Repeating)),
                 TargetingTurret {
-                    targeting_radius: 200.0,
                     mode: TargetingMode::First,
                     ..default()
                 },
@@ -193,10 +208,15 @@ fn spawn_turret(
                     },
                     ..default()
                 },
+                *turret,
+                CellEntity {
+                    pos: cell.position
+                },
+                TurretLevel::default(),
                 RenderLayers::layer(1)
-            )).set_parent(base_entity).id();
+            )).set_parent(parent);
 
-            (turret_entity, 100)
+            (parent, 100)
         },
         _ => (commands.spawn_empty().id(), 0)
     };

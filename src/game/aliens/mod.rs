@@ -1,12 +1,12 @@
 pub mod components;
-use std::time::Duration;
 
-use bevy::render::view::visibility;
-use bevy_tweening::{lens::TransformScaleLens, Animator, AnimatorState, EaseFunction, Tween};
+use std::time::Duration;
+use game::GameLayerOrder;
+
+use bevy_tweening::{lens::TransformScaleLens, Animator, EaseFunction, Tween};
 pub use components::*;
 
 pub mod wave;
-use game::GameLayerOrder;
 pub use wave::*;
 
 use crate::*;
@@ -19,20 +19,6 @@ pub struct ZigZag {
     pub range: f32,
     pub moving_positive: bool,
     pub move_direction: PathDirection,
-}
-
-pub enum ZigZagSpeed {
-    Slow,
-    Medium,
-    Fast
-}
-
-impl ZigZag {
-    pub fn new(path_follower_speed: f32, zigzag_speed: ZigZagSpeed, range: f32) -> Self {
-        Self { 
-            ..default()
-        }
-    }
 }
 
 #[derive(Component)]
@@ -203,8 +189,8 @@ fn take_damage(
 
         for damage in alien.received_damages_mut() {
             let multiplier = match damage.damage_type {
-                DamageType::Energy => energy_vulnerability,
                 DamageType::Kinetic => kinetic_vulnerability,
+                DamageType::Energy => energy_vulnerability,
                 DamageType::Chemical => chemical_vulnerability,
                 DamageType::True => 1.0
             };

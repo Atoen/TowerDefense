@@ -1,6 +1,6 @@
 use std::fmt;
 
-use bevy::{prelude::{Component, Resource}, time::Timer};
+use bevy::{prelude::Component, time::Timer};
 use strum_macros::{Display, EnumCount, EnumIter};
 
 use super::Damage;
@@ -23,6 +23,8 @@ impl Buildable {
     pub fn is_turret(&self) -> bool {
         matches!(self, Buildable::Turret(_))
     }
+
+    pub const MODULE: Buildable = Buildable::Standalone(StandaloneBuildable::Module);
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -49,7 +51,7 @@ impl fmt::Display for StandaloneBuildable {
     }
 }
 
-#[derive(Display, EnumIter, EnumCount, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Display, EnumIter, EnumCount, Clone, Copy, Debug, PartialEq, Eq, Hash, Component)]
 pub enum Turret {
 
     // Standard
@@ -74,9 +76,6 @@ pub enum Consumable {
     ProximityMine,
     RotorBlades
 }
-
-#[derive(Resource, Default)]
-pub struct SelectedBuildable(pub Option<Buildable>);
 
 #[derive(Component)]
 pub struct ProximityMineAnimation {

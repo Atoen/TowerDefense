@@ -8,11 +8,23 @@ pub struct GameArena;
 #[derive(Event)]
 pub struct GameArenaClickedEvent(pub Vec2);
 
-#[derive(Resource, Default)]
-struct InputDragData {
+#[derive(Resource)]
+struct InputData {
+    first_input: bool,
     drag_distance: Vec2,
     input_held: bool,
     is_dragging: bool
+}
+
+impl Default for InputData {
+    fn default() -> Self {
+        Self {
+            first_input: true,
+            drag_distance: Default::default(),
+            input_held: Default::default(),
+            is_dragging: Default::default()
+        }
+    }
 }
 
 const DRAG_DISTANCE_THRESHOLD: f32 = 10.0;
@@ -20,61 +32,67 @@ const DRAG_DISTANCE_THRESHOLD_2: f32 = DRAG_DISTANCE_THRESHOLD * DRAG_DISTANCE_T
 
 fn game_arena_clicked_system(
     windows: Query<&Window, With<PrimaryWindow>>,
+    mut commands: Commands,
     mut button_events: EventReader<MouseButtonInput>,
     mut motion_events: EventReader<MouseMotion>,
-    mut drag_data: ResMut<InputDragData>,
+    mut input_data: ResMut<InputData>,
     mut game_camera: Query<(&mut Transform, &OrthographicProjection), With<GameCamera>>,
-    mut writer: EventWriter<GameArenaClickedEvent>,
     game_arena: Query<Option<&PickingInteraction>, With<GameArena>>
 ) {
-
     let Ok(Some(PickingInteraction::Hovered) | Some(PickingInteraction::Pressed)) = game_arena.get_single() else { 
-        drag_data.input_held = false;
-        drag_data.is_dragging = false;
+        input_data.input_held = false;
+        input_data.is_dragging = false;
         return
      };
 
     let window = windows.single();
     let Some(cursor_pos) = window.cursor_position() else { 
-        drag_data.input_held = false;
-        drag_data.is_dragging = false;
+        input_data.input_held = false;
+        input_data.is_dragging = false;
         return;
     };
 
     let Ok((mut transform, projection)) = game_camera.get_single_mut() else { return };
 
     for button_event in button_events.read() {
+        
         if button_event.button == MouseButton::Left {
-            drag_data.input_held = button_event.state.is_pressed();
+            if input_data.first_input {
+                input_data.first_input = false;
+                return;
+            }
 
-            if drag_data.input_held {
-                drag_data.is_dragging = false;
-                drag_data.drag_distance = Vec2::ZERO;
-            } else if drag_data.is_dragging {
+            input_data.input_held = button_event.state.is_pressed();
+
+            if input_data.input_held {
+                input_data.is_dragging = false;
+                input_data.drag_distance = Vec2::ZERO;
+            } else if input_data.is_dragging {
                 debug!("Drag ended");
             } else {
                 debug!("Mouse click");
-                writer.send(GameArenaClickedEvent(cursor_pos));
+
+                commands.trigger(GameArenaClickedEvent(cursor_pos));
             }
         }
     }
 
-    if drag_data.input_held {
+    if input_data.input_held {
         for mouse_motion in motion_events.read() {
-            drag_data.drag_distance += mouse_motion.delta;
+            input_data.drag_distance += mouse_motion.delta;
         }
 
-        if !drag_data.is_dragging && drag_data.drag_distance.length_squared() >= DRAG_DISTANCE_THRESHOLD_2 {
-            drag_data.is_dragging = true;
-            drag_data.drag_distance = Vec2::ZERO;
+        if !input_data.is_dragging && input_data.drag_distance.length_squared() >= DRAG_DISTANCE_THRESHOLD_2 {
+            input_data.is_dragging = true;
+            input_data.drag_distance = Vec2::ZERO;
             debug!("Drag started");
         }
 
-        if drag_data.is_dragging {
-            let normalized_displacement = drag_data.drag_distance * projection.scale;
+        if input_data.is_dragging {
+            let normalized_displacement = input_data.drag_distance * projection.scale;
             move_camera(&mut transform, &normalized_displacement);
 
-            drag_data.drag_distance = Vec2::ZERO;
+            input_data.drag_distance = Vec2::ZERO;
         }
     }
 }
@@ -130,23 +148,17 @@ fn handle_scroll(
     }
 }
 
-fn game_arena_exists(query: Query<(), With<GameArena>>) -> bool {
-    !query.is_empty()
-}
-
 pub struct GameArenaPlugin;
 impl Plugin for GameArenaPlugin {
     fn build(&self, app: &mut App) {
         app
-            .insert_resource(InputDragData::default())
+            .insert_resource(InputData::default())
 
             .add_event::<GameArenaClickedEvent>()
 
             .add_systems(Update, handle_scroll)
 
             .add_systems(Update, game_arena_clicked_system
-                .run_if(in_state(AppState::InGame).and_then(
-                    game_arena_exists
-            )));
+                .run_if(in_state(AppState::InGame).and_then(|query: Query<(), With<GameArena>>| !query.is_empty())));
     }
 }

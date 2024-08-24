@@ -19,8 +19,17 @@ pub use build_info::*;
 pub mod info_popup;
 pub use info_popup::*;
 
+pub mod hologram;
+pub use hologram::*;
+
+pub mod info_text;
+pub use info_text::*;
+
 pub mod game_arena;
 pub use game_arena::*;
+
+pub mod manage_buildable;
+pub use manage_buildable::*;
 
 use bevy::prelude::*;
 
@@ -31,9 +40,12 @@ impl Plugin for ComponentPlugin {
             .add_plugins(ButtonPlugin)
             .add_plugins(GameStatusPlugin)
             .add_plugins(WaponSelectorPlugin)
+            .add_plugins(ManageBuidablePlugin)
             .add_plugins(WeaponPagePlugin)
             .add_plugins(BuildInfoPlugin)
             .add_plugins(GameArenaPlugin)
+            .add_plugins(InfoTextPlugin)
+            .add_plugins(HologramPLugin)
             .add_plugins(MenuButtonPlugin);
     }
 }

@@ -33,14 +33,14 @@ impl Component for BuildInfo {
     
                 if buildable.is_module() {
                     ui.spawn((
-                        row.add("Done"),
+                        row.add("Cancel"),
                         UiLayout::window().pos((-width * 0.5 + Rw(50.0), y)).size((width, height)).pack::<Base>(),
                         Button {
                             hover_enlarge: false,
                             image: None,
-                            text: Some("Done".into())
+                            text: Some("Cancel".into())
                         },
-                        InfoButton::Done
+                        InfoButton::Cancel
                     ));
     
                     return;
@@ -74,17 +74,13 @@ struct BuildInfoUi;
 enum InfoButton {
     Info,
     Build,
-    Done
+    Cancel
 }
-
-#[derive(Event)]
-pub struct InfoClosedEvent;
 
 fn info_button_clicked_system(
     mut events: EventReader<UiClickEvent>,
-    mut writer: EventWriter<InfoClosedEvent>,
-    mut build_writer: EventWriter<BuildEvent>,
-    mut selected_buildable: ResMut<SelectedBuildable>,
+    mut commands: Commands,
+    mut bottom_row: ResMut<BottomRowContent>,
     selected_cell: Res<SelectedCell>,
     query: Query<&InfoButton>,
 ) {
@@ -92,24 +88,31 @@ fn info_button_clicked_system(
         if let Ok(info_button) = query.get(event.target) {
             debug!("Clicked: {}", info_button);
 
-            match info_button {
-                InfoButton::Done => {
-                    selected_buildable.0 = None;
-                    writer.send(InfoClosedEvent);
-                }
-                InfoButton::Build => {
+            let BottomRowContent::Build(buildable) = *bottom_row else {
+                error!("Bottom row state mismatch! Current mode {:?}, expected: BottomRowContent::Build", bottom_row);
+                return
+            };
 
+            match info_button {
+                InfoButton::Cancel => {
+                    *bottom_row = BottomRowContent::Selector;
+                    commands.trigger(BottomRowContentChangedEvent(*bottom_row));
+                }
+
+                InfoButton::Build => {
                     let Some(cell_pos) = selected_cell.0 else { continue };
-                    let Some(buildable) = selected_buildable.0 else { continue };
 
                     if !buildable.is_module() {
-                        build_writer.send(BuildEvent {
+                        commands.trigger(BuildEvent {
                             buildable,
                             cell_pos
                         });
                     }
                 }
-                _ => (),
+                
+                InfoButton::Info => {
+                    info!("Displaying info about {}", buildable);
+                }
             }
         }
     }
@@ -119,7 +122,7 @@ pub struct BuildInfoPlugin;
 impl Plugin for BuildInfoPlugin {
     fn build(&self, app: &mut App) {
         app
-            .add_event::<InfoClosedEvent>()
+
             .add_event::<BuildEvent>()
 
             .add_plugins(UiGenericPlugin::<BuildInfoUi>::new())

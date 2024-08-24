@@ -11,7 +11,6 @@ struct MenuButtonUi;
 fn build_component(
     mut commands: Commands,
     query: Query<(Entity, &MenuButton), Added<MenuButton>>,
-    assets: Res<AssetServer>,
     mut materials: ResMut<Assets<ColorMaterial>>
 ) {
     for (entity, button_source) in &query {

@@ -1,6 +1,5 @@
 use std::collections::{HashMap, VecDeque};
 
-use bevy::math::VectorSpace;
 use game::GameLayerOrder;
 
 use crate::*;
@@ -37,21 +36,36 @@ pub struct GameGrid {
     pub core_pos: Vec3
 }
 
+#[derive(Component)]
+pub struct CellEntity {
+    pub pos: UVec2
+}
+
 impl GameGrid {
-    fn coords_to_index(&self, cell: &UVec2) -> Option<usize> {
-        if cell.x < GRID_WIDTH && cell.y < GRID_HEIGHT {
-            Some((cell.y * GRID_WIDTH + cell.x) as usize)
+    fn coords_to_index(&self, cell_pos: &UVec2) -> Option<usize> {
+        if cell_pos.x < GRID_WIDTH && cell_pos.y < GRID_HEIGHT {
+            Some((cell_pos.y * GRID_WIDTH + cell_pos.x) as usize)
         } else {
             None
         }
     }
 
-    pub fn get_cell(&self, cell: &UVec2) -> Option<&Cell> {
-        self.coords_to_index(cell).map(|index| &self.data[index])
+    pub fn find_cell(&self, entity: Entity) -> Option<&Cell> {
+        self.data.iter()
+            .find(|cell| cell.entity_macthes(entity))
     }
 
-    pub fn get_cell_mut(&mut self, cell: &UVec2) -> Option<&mut Cell> {
-        self.coords_to_index(cell).map(|index| &mut self.data[index])
+    pub fn find_cell_mut(&mut self, entity: Entity) -> Option<&mut Cell> {
+        self.data.iter_mut()
+            .find(|cell| cell.entity_macthes(entity))
+    }
+
+    pub fn get_cell(&self, cell_pos: &UVec2) -> Option<&Cell> {
+        self.coords_to_index(cell_pos).map(|index| &self.data[index])
+    }
+
+    pub fn get_cell_mut(&mut self, cell_pos: &UVec2) -> Option<&mut Cell> {
+        self.coords_to_index(cell_pos).map(|index| &mut self.data[index])
     }
 
     pub fn set_special(&mut self, cell_pos: &UVec2, special: SpecialCell) -> Option<&Cell> {
@@ -102,8 +116,6 @@ impl GameGrid {
     ) -> PathState {
         let Some(cell) = self.get_cell_mut(cell_pos) else { return PathState::NoChange };
     
-        const MODULE: &Buildable = &Buildable::Standalone(StandaloneBuildable::Module);
-
         fn spawn_module(cell_pos: &UVec2, commands: &mut Commands, game_textures: &GameTextures) -> Entity {
             commands.spawn((
                 SpriteBundle {
@@ -120,7 +132,7 @@ impl GameGrid {
         }
     
         // Cell is already occupied
-        if !cell.can_place(MODULE) {
+        if !cell.can_place(Buildable::MODULE) {
 
             // Cell is occupied by other module - remove it
             if let Some((entity, StandaloneBuildable::Module)) = cell.standalone_entity {
@@ -132,6 +144,10 @@ impl GameGrid {
                 // Module could be blocking better path - not skipping the calulcation
                 return self.calculate_path();
             }
+
+            info!("Can't place module there");
+            commands.trigger(InfoMessageAddedEvent("Can't place module there".into()));
+
             return PathState::NoChange
         }
 
@@ -159,12 +175,13 @@ impl GameGrid {
             return PathState::Updated
         } else {
             info!("Can't block path to the Core");
+            commands.trigger(InfoMessageAddedEvent("Can't block path to the Core".into()));
         }
 
         PathState::NoChange
     }
 
-    pub fn can_place(&self, cell: &UVec2, buildable: &Buildable) -> bool {
+    pub fn can_place(&self, cell: &UVec2, buildable: Buildable) -> bool {
         let can_place = self.coords_to_index(cell).map(|index| self.data[index].can_place(buildable))
             .unwrap_or(false);
 
@@ -214,7 +231,7 @@ impl GameGrid {
         None
     }
 
-    pub fn get_neighbors(&self, cell: &UVec2, include_diagonals: bool) -> Vec<UVec2> {
+    fn get_neighbors(&self, cell: &UVec2, include_diagonals: bool) -> Vec<UVec2> {
         let mut neighbors = Vec::new();
 
         if include_diagonals {
@@ -327,6 +344,16 @@ impl Cell {
         self.standalone_entity.is_none() && self.special.is_none()
     }
 
+    pub fn managable_buildable(&self) -> Option<(Entity, Buildable)> {
+        if let Some((entity, turret)) = self.turret_entity {
+            Some((entity, Buildable::Turret(turret)))
+        } else if let Some((entity, StandaloneBuildable::Consumable(consumable))) = self.standalone_entity {
+            Some((entity, Buildable::Standalone(StandaloneBuildable::Consumable(consumable))))
+        } else {
+            None
+        }
+    }
+
     pub fn has_moudle(&self) -> bool {
         self.standalone_entity.is_some_and(|(_, a)| matches!(a, StandaloneBuildable::Module))
     }
@@ -347,7 +374,31 @@ impl Cell {
         self.turret_entity = None;
     }
 
-    pub fn can_place(&self, buildable: &Buildable) -> bool {
+    pub fn remove_buildable(&mut self, buildable: Buildable) {
+        match buildable {
+            Buildable::Standalone(ref standalone) => {
+                if let Some((_, current_standalone)) = self.standalone_entity {
+                    if &current_standalone == standalone {
+                        self.standalone_entity = None;
+                    }
+                }
+            }
+            Buildable::Turret(ref turret) => {
+                if let Some((_, current_turret)) = self.turret_entity {
+                    if &current_turret == turret {
+                        self.turret_entity = None;
+                    }
+                }
+            }
+        }
+    }
+
+    fn entity_macthes(&self, entity: Entity) -> bool {
+        self.standalone_entity.is_some_and(|(e, _)| e == entity) || 
+            self.turret_entity.is_some_and(|(e, _)| e == entity)
+    }
+
+    pub fn can_place(&self, buildable: Buildable) -> bool {
         match buildable {
             Buildable::Standalone(_) => self.is_empty(),
             Buildable::Turret(_) => {

@@ -71,8 +71,8 @@ enum PageNavigation {
     Previous
 }
 
-#[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash, Display)]
-pub enum PageState {
+#[derive(Resource, Default, Display, Clone, Copy, PartialEq)]
+pub enum WeaponSelectorPage {
     #[default]
     Standard,
     Advanced,
@@ -80,30 +80,26 @@ pub enum PageState {
 }
 
 #[derive(Event)]
-pub struct PageChangedEvent;
+pub struct PageChangedEvent(pub WeaponSelectorPage);
 
 fn page_navigation_button_clicked_system(
     mut events: EventReader<UiClickEvent>,
-    mut writer: EventWriter<PageChangedEvent>,
-    query: Query<&PageNavigation>,
-    state: Res<State<PageState>>,
-    mut next_state: ResMut<NextState<PageState>>,
+    mut commands: Commands,
+    mut page: ResMut<WeaponSelectorPage>,
+    query: Query<&PageNavigation>
 ) {
     for event in events.read() {
         if let Ok(navigation) = query.get(event.target) { 
-            let next_page = get_next_page(navigation, state.get());
-
-            next_state.set(next_page.clone());
-            writer.send(PageChangedEvent);
+            *page = get_next_page(navigation, &page);
+            commands.trigger(PageChangedEvent(*page));
         }
     }
 }
 
 fn handle_scroll(
     mut scroll: EventReader<MouseWheel>,
-    state: Res<State<PageState>>,
-    mut next_state: ResMut<NextState<PageState>>,
-    mut writer: EventWriter<PageChangedEvent>,
+    mut commands: Commands,
+    mut page: ResMut<WeaponSelectorPage>,
     windows: Query<&Window, With<PrimaryWindow>>
 ) {
     let Ok(window) = windows.get_single() else { return };
@@ -114,33 +110,30 @@ fn handle_scroll(
 
     for event in scroll.read() {
         let navigation = if event.y > 0.0 { PageNavigation::Next } else { PageNavigation::Previous };
-        let next_page = get_next_page(&navigation, state.get());
-
-        next_state.set(next_page);
-        writer.send(PageChangedEvent);
+        
+        *page = get_next_page(&navigation, &page);
+        commands.trigger(PageChangedEvent(*page));
     }
 }
 
-fn get_next_page(navigation: &PageNavigation, current_page: &PageState) -> PageState {
+fn get_next_page(navigation: &PageNavigation, current_page: &WeaponSelectorPage) -> WeaponSelectorPage {
     match (navigation, current_page) {
-        (PageNavigation::Next, PageState::Standard) => PageState::Advanced,
-        (PageNavigation::Next, PageState::Advanced) => PageState::Building,
-        (PageNavigation::Next, PageState::Building) => PageState::Standard,
-        (PageNavigation::Previous, PageState::Standard) => PageState::Building,
-        (PageNavigation::Previous, PageState::Advanced) => PageState::Standard,
-        (PageNavigation::Previous, PageState::Building) => PageState::Advanced
+        (PageNavigation::Next, WeaponSelectorPage::Standard) => WeaponSelectorPage::Advanced,
+        (PageNavigation::Next, WeaponSelectorPage::Advanced) => WeaponSelectorPage::Building,
+        (PageNavigation::Next, WeaponSelectorPage::Building) => WeaponSelectorPage::Standard,
+        (PageNavigation::Previous, WeaponSelectorPage::Standard) => WeaponSelectorPage::Building,
+        (PageNavigation::Previous, WeaponSelectorPage::Advanced) => WeaponSelectorPage::Standard,
+        (PageNavigation::Previous, WeaponSelectorPage::Building) => WeaponSelectorPage::Advanced
     }
 }
 
-fn page_changed_system(
+fn page_changed_trigger(
+    trigger: Trigger<PageChangedEvent>,
     mut commands: Commands,
-    state: Res<State<PageState>>,
     weapon_selector: Query<Entity, With<WeaponSelector>>,
-    current_page: Query<Entity, With<WeaponPage>>,
+    current_page: Query<Entity, With<WeaponPage>>
 ) {
-    let page = state.get();
-
-    info!("Current page: {}", page);
+    info!("Current page: {}", trigger.event().0);
 
     let Ok(weapon_selector) = weapon_selector.get_single() else { return };
     let Ok(current_page) = current_page.get_single() else { return };
@@ -167,14 +160,19 @@ impl Plugin for WaponSelectorPlugin {
             .add_event::<PageChangedEvent>()
             .add_plugins(UiGenericPlugin::<WeaponSelectorUi>::new())
 
+            .init_resource::<WeaponSelectorPage>()
+
             .add_systems(PostUpdate, handle_scroll)
 
             .add_systems(PostUpdate, page_navigation_button_clicked_system
                 .distributive_run_if(on_event::<UiClickEvent>())
                 .distributive_run_if(input_just_pressed(MouseButton::Left)))
+            
+            .observe(page_changed_trigger)
 
-            .init_state::<PageState>()
-            .add_systems(Update, page_changed_system
-                .run_if(on_event::<PageChangedEvent>()));
+            ;
+
+            // .add_systems(Update, page_changed_trigger
+            //     .run_if(on_event::<PageChangedEvent>()));
     }
 }

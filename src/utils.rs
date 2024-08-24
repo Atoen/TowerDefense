@@ -9,10 +9,13 @@ struct FpsRoot;
 struct FpsText;
 
 #[derive(Component)]
-pub struct DespawnAfterFrames{
+pub struct DespawnAfterFrames {
     pub delay: u32,
     pub recursive: bool
 }
+
+#[derive(Component)]
+pub struct DespawnAfter(pub Timer);
 
 impl DespawnAfterFrames {
     pub const ONE: DespawnAfterFrames = DespawnAfterFrames { delay: 1, recursive: true };
@@ -39,6 +42,18 @@ fn despawn_after_frames_system(
     }
 }
 
+fn despawn_after_timer_system( 
+    time: Res<Time>,
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut DespawnAfter)>
+) {
+    for (entity, mut timer) in &mut query {
+        if timer.0.tick(time.delta()).finished() {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
 fn setup_fps_counter(
     mut commands: Commands,
 ) {
@@ -54,9 +69,9 @@ fn setup_fps_counter(
                 bottom: Val::Auto,
                 left: Val::Percent(5.0),
                 padding: UiRect::all(Val::Px(4.0)),
-                ..Default::default()
+                ..default()
             },
-            ..Default::default()
+            ..default()
         },
     )).id();
 
@@ -81,10 +96,10 @@ fn setup_fps_counter(
                     }
                 },
             ]),
-            ..Default::default()
+            ..default()
         },
     )).id();
-    commands.entity(root).push_children(&[text_fps]);
+    commands.entity(root).add_child(text_fps);
 }
 
 fn fps_text_update_system(
@@ -143,7 +158,11 @@ impl Plugin for UtilPlugin {
 
             .add_systems(Update, (fps_text_update_system, fps_counter_showhide))
 
-            .add_systems(Update, despawn_after_frames_system);
+            .add_systems(Update, despawn_after_timer_system)
+
+            .add_systems(Update, despawn_after_frames_system)
+
+            ;
     }
 }
 

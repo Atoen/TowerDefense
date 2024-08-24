@@ -3,44 +3,39 @@ use crate::*;
 #[derive(Event)]
 pub struct GameCellClickedEvent(pub Option<UVec2>);
 
-fn game_click_system(
+fn game_click_trigger(
+    trigger: Trigger<GameArenaClickedEvent>,
+    mut commanads: Commands,
     game_camera: Query<(&GlobalTransform, &OrthographicProjection), With<GameCamera>>,
     windows: Query<&Window, With<PrimaryWindow>>,
     game_arena: Query<&Dimension, With<GameArena>>,
-    mut reader: EventReader<GameArenaClickedEvent>,
-    mut writer: EventWriter<GameCellClickedEvent>,
-    mut selected_cell: ResMut<SelectedCell>
 ) {
     let window = windows.single();
     let Ok((camera_global_transform, projection)) = game_camera.get_single() else { return };
 
-    for event in reader.read() {
-        let world_cursor_pos = cursor_to_world_pos(event.0, window.size());
-    
-        fn calculate_scale_factor(dimension: &Dimension) -> f32 {
-            // First pass render target height
-            1080.0 / dimension.size.y
-        }    
-    
-        let scale_factor = game_arena.get_single().map_or(1.5, calculate_scale_factor);
-        let click_pos = world_cursor_pos * scale_factor * projection.scale + camera_global_transform.translation();
+    let world_cursor_pos = cursor_to_world_pos(trigger.event().0, window.size());
 
-        let cell = get_grid_cell_coords(&click_pos.truncate());
+    fn calculate_scale_factor(dimension: &Dimension) -> f32 {
+        // First pass render target height
+        1080.0 / dimension.size.y
+    }    
 
-        debug!("Cell {:?} clicked", cell);
+    let scale_factor = game_arena.get_single().map_or(1.5, calculate_scale_factor);
+    let click_pos = world_cursor_pos * scale_factor * projection.scale + camera_global_transform.translation();
 
-        selected_cell.0 = cell;
-        writer.send(GameCellClickedEvent(cell));
-    }
+    let cell = wolrd_to_cell_pos(&click_pos.truncate());
+
+    debug!("Cell {:?} clicked", cell);
+    commanads.trigger(GameCellClickedEvent(cell));
 }
 
-pub fn get_grid_cell_coords(click_pos: &Vec2) -> Option<UVec2> {
+pub fn wolrd_to_cell_pos(world_pos: &Vec2) -> Option<UVec2> {
     let half_grid_size = Vec2::new(
         (GRID_WIDTH * GRID_CELL_SIZE) as f32 / 2.0,
         (GRID_HEIGHT * GRID_CELL_SIZE) as f32 / 2.0
     );
 
-    let local_pos = *click_pos + half_grid_size;
+    let local_pos = *world_pos + half_grid_size;
     
     if local_pos.x < 0.0 || local_pos.y < 0.0 {
         return None;
@@ -56,14 +51,14 @@ pub fn get_grid_cell_coords(click_pos: &Vec2) -> Option<UVec2> {
     }
 }
 
-pub fn cell_to_world_pos(cell: &UVec2) -> Vec3 {
+pub fn cell_to_world_pos(cell_pos: &UVec2) -> Vec3 {
     let half_grid_size = Vec2::new(
         (GRID_WIDTH * GRID_CELL_SIZE) as f32 / 2.0,
         (GRID_HEIGHT * GRID_CELL_SIZE) as f32 / 2.0
     );
 
-    let world_x = (cell.x * GRID_CELL_SIZE + GRID_CELL_SIZE / 2) as f32 - half_grid_size.x;
-    let world_y = (cell.y * GRID_CELL_SIZE + GRID_CELL_SIZE / 2) as f32 - half_grid_size.y;
+    let world_x = (cell_pos.x * GRID_CELL_SIZE + GRID_CELL_SIZE / 2) as f32 - half_grid_size.x;
+    let world_y = (cell_pos.y * GRID_CELL_SIZE + GRID_CELL_SIZE / 2) as f32 - half_grid_size.y;
 
     Vec3::new(world_x, world_y, 0.0)
 }
@@ -74,9 +69,8 @@ impl Plugin for CursorTranslationPlugin {
         app
             .add_event::<GameCellClickedEvent>()
 
-            .add_systems(Update, game_click_system
-                .run_if(in_state(AppState::InGame).and_then(
-                    on_event::<GameArenaClickedEvent>()
-                )));
+            .observe(game_click_trigger)
+
+            ;
     }
 }

@@ -32,6 +32,8 @@ impl AssetPath {
 
     const PATH_DOT: &'static str = "images/path_dot.png";
     const PATH_ALIEN: &'static str = "images/path_alien.png";
+
+    const UPGRADE_ARROW: &'static str = "images/upgrade_arrow.png";
 }
 
 #[derive(Resource)]
@@ -77,6 +79,8 @@ pub struct GameTextures {
 
     pub path_dot: Handle<Image>,
     pub path_alien: Handle<Image>,
+
+    pub upgrade_arrow: Handle<Image>,
 }
 
 impl GameTextures {
@@ -113,6 +117,8 @@ impl GameTextures {
 
             path_dot: asset_server.load(AssetPath::PATH_DOT),
             path_alien: asset_server.load(AssetPath::PATH_ALIEN),
+
+            upgrade_arrow: asset_server.load(AssetPath::UPGRADE_ARROW),
         }
     }
 }

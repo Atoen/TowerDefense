@@ -130,21 +130,19 @@ fn toggle_pause_system(
     }
 }
 
-fn game_cash_updated_system(
-    mut events: EventReader<CashChangedEvent>,
+fn game_cash_updated_trigger(
+    trgger: Trigger<CashChangedEvent>,
     mut query: Query<&mut Text, With<GameCashDisplay>>,
     mut game_cash: Option<ResMut<GameCash>>
 ) {
-    for event in events.read() {
-        let Some(cash) = game_cash.as_mut() else {
-            return;
-        };
+    let Some(cash) = game_cash.as_mut() else {
+        return;
+    };
 
-        cash.0 = cash.0.wrapping_add_signed(event.change);
+    cash.0 = cash.0.wrapping_add_signed(trgger.event().change);
 
-        for mut text in &mut query {
-            text.sections[0].value = cash.0.to_string();
-        }
+    for mut text in &mut query {
+        text.sections[0].value = cash.0.to_string();
     }
 }
 
@@ -160,8 +158,8 @@ impl Plugin for GameStatusPlugin {
                 .distributive_run_if(on_event::<UiClickEvent>())
                 .distributive_run_if(input_just_pressed(MouseButton::Left)))
 
-            .add_systems(Update, game_cash_updated_system
-                .run_if(on_event::<CashChangedEvent>())
-            );
+            .observe( game_cash_updated_trigger)
+
+            ;
     }
 }

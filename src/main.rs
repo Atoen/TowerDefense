@@ -117,6 +117,7 @@ fn main() {
             level: bevy::log::Level::INFO,
             ..default()
         }))
+        // .add_plugins(UiDebugPlugin::<MainUi>::new())
         .add_plugins(EntropyPlugin::<WyRand>::default())
         .add_plugins(UiPlugin)
         .add_plugins(bevy_framepace::FramepacePlugin)

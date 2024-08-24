@@ -1,7 +1,10 @@
 use crate::*;
 
+#[derive(Component, Default)]
+pub struct TurretLevel(pub u8);
+
 #[derive(Component)]
-pub struct TurretPart;
+pub struct RaiseTurretLevel;
 
 #[derive(Component)]
 pub struct ProjectileTurret;
@@ -12,7 +15,6 @@ pub struct AttackDelay(pub Timer);
 #[derive(Component, Default)]
 pub struct TargetingTurret {
     pub current_angle: f32,
-    pub targeting_radius: f32,
     pub current_target: Option<Entity>,
     pub mode: TargetingMode
 }
@@ -77,7 +79,7 @@ impl Pierce {
     pub const ONE: Pierce = Pierce::Finite(1);
 }
 
-
+#[derive(Clone, Copy)]
 pub struct Damage {
     pub kind: DamageKind,
     pub source: DamageSource,

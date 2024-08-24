@@ -13,7 +13,7 @@ impl Component for WeaponPage {
     fn register_component_hooks(_hooks: &mut bevy::ecs::component::ComponentHooks) {
         _hooks.on_add(|mut world, entity, _| {
         
-            let page = world.resource::<State<PageState>>().get().clone();
+            let page = *world.resource::<WeaponSelectorPage>();
 
             let mut commands = world.commands();
 
@@ -21,7 +21,7 @@ impl Component for WeaponPage {
                 UiTreeBundle::<WeaponPageUi>::from(UiTree::new2d("Weapon Page"))
             ).with_children(|ui| {
                 let elements_to_display: Vec<Buildable> = match page {
-                    PageState::Standard => vec![
+                    WeaponSelectorPage::Standard => vec![
                         Turret::PulseBlaster,
                         Turret::IonCannon,
                         Turret::SwarmTurret,
@@ -33,13 +33,13 @@ impl Component for WeaponPage {
                         Turret::FireThrower
                     ].into_iter().map(Buildable::Turret).collect(),
     
-                    PageState::Advanced => vec![
+                    WeaponSelectorPage::Advanced => vec![
                         Turret::Sentinel,
                         Turret::CyberOro,
                         Turret::RailGun
                     ].into_iter().map(Buildable::Turret).collect(),
     
-                    PageState::Building => vec![
+                    WeaponSelectorPage::Building => vec![
                         StandaloneBuildable::Module,
                         StandaloneBuildable::Consumable(Consumable::ProximityMine),
                         StandaloneBuildable::Consumable(Consumable::RotorBlades)
@@ -79,24 +79,21 @@ impl Component for WeaponPage {
 #[derive(Component, Debug, Default, Clone, PartialEq)]
 struct WeaponPageUi;
 
-#[derive(Event)]
-pub struct BuildableSelecedEvent;
-
 #[derive(Component)]
 struct BuildableButton(Buildable);
 
 fn buildable_clicked_system(
     mut events: EventReader<UiClickEvent>,
-    mut writer: EventWriter<BuildableSelecedEvent>,
+    mut commands: Commands,
     query: Query<&BuildableButton>,
-    mut selected_buildable: ResMut<SelectedBuildable>
+    mut bottom_row: ResMut<BottomRowContent>
 ) {
     for event in events.read() {
         if let Ok(buildable_button) = query.get(event.target) {
             info!("Clicked: {}", buildable_button.0);
 
-            writer.send(BuildableSelecedEvent);
-            selected_buildable.0 = Some(buildable_button.0);
+            *bottom_row = BottomRowContent::Build(buildable_button.0);
+            commands.trigger(BottomRowContentChangedEvent(*bottom_row));
         }
     }
 }
@@ -105,14 +102,13 @@ pub struct WeaponPagePlugin;
 impl Plugin for WeaponPagePlugin {
     fn build(&self, app: &mut App) {
         app
-            .add_event::<BuildableSelecedEvent>()
-
+        
             .add_plugins(UiGenericPlugin::<WeaponPageUi>::new())
 
             .add_systems(PostUpdate, buildable_clicked_system
                 .distributive_run_if(on_event::<UiClickEvent>())
                 .distributive_run_if(input_just_pressed(MouseButton::Left)))
 
-            .init_resource::<SelectedBuildable>();
+            ;
     }
 }

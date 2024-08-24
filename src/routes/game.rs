@@ -26,7 +26,7 @@ impl Component for GameRoute {
                 route.spawn((
                     UiTreeBundle::<MainUi>::from(UiTree::new2d("Game")),
                     MovableByCamera,
-                    GameLayout
+                    GameLayout,
                 )).with_children(|ui| {
         
                     let root = UiLink::<MainUi>::path("Root");
@@ -64,7 +64,8 @@ impl Component for GameRoute {
                     ui.spawn((
                         root.add("Bottom Row"),
                         UiLayout::window().y(Rl(100.0)).size((Rl(100.0), 100.0)).anchor(Anchor::BottomLeft).pack::<Base>(),
-                        WeaponSelector
+                        WeaponSelector,
+                        BottomRow
                     ));            
     
                     ui.spawn((
@@ -83,44 +84,48 @@ impl Component for GameRoute {
 #[derive(Component)]
 struct GameLayout;
 
-fn hide_build_info_system(
-    mut commands: Commands,
-    game_layout: Query<Entity, With<GameLayout>>,
-    info: Query<Entity, With<BuildInfo>>
-) {
-    let Ok(info) = info.get_single() else { return; };
-    let Ok(game_route) = game_layout.get_single() else { return; };
+#[derive(Event)]
+pub struct BottomRowContentChangedEvent(pub BottomRowContent);
 
-    commands.entity(info).insert(DespawnAfterFrames { delay: 2, recursive: true });
+#[derive(Component)]
+struct BottomRow;
 
-    let selector = commands.spawn((
-        UiLink::<MainUi>::path("Root/Bottom Row"),
-        UiLayout::window().y(Rl(100.0)).size((Rl(100.0), 100.)).anchor(Anchor::BottomLeft).pack::<Base>(),
-        WeaponSelector
-    )).id();
-
-    commands.entity(game_route).add_child(selector);
+#[derive(Resource, Default, Debug, Display, PartialEq, Eq, Clone, Copy)]
+pub enum BottomRowContent {
+    #[default]
+    Selector,
+    Build(Buildable),
+    Manage { entity: Entity, buildable: Buildable }
 }
 
-fn build_info_display_system(
+fn update_bottom_row_trigger(
+    trigger: Trigger<BottomRowContentChangedEvent>,
     mut commands: Commands,
-    weapon_selector: Query<Entity, With<WeaponSelector>>,
     game_layout: Query<Entity, With<GameLayout>>,
-    selected_buildable: Res<SelectedBuildable>
+    current_content: Query<Entity, With<BottomRow>>
 ) {
-    let Some(buildable) = &selected_buildable.0 else { return; };
+    let Ok(game_route) = game_layout.get_single() else { return };
+    let Ok(current) = current_content.get_single() else { return };
 
-    let Ok(weapon_selector) = weapon_selector.get_single() else { return; };
-    let Ok(game_route) = game_layout.get_single() else { return; };
-
-    commands.entity(weapon_selector).insert(DespawnAfterFrames { delay: 2, recursive: true });
-    let info = commands.spawn((
+    let content = commands.spawn((
         UiLink::<MainUi>::path("Root/Bottom Row"),
         UiLayout::window().y(Rl(100.0)).size((Rl(100.0), 100.)).anchor(Anchor::BottomLeft).pack::<Base>(),
-        BuildInfo(*buildable)
+        BottomRow
     )).id();
 
-    commands.entity(game_route).add_child(info);
+    match trigger.event().0 {
+        BottomRowContent::Selector => commands.entity(content).insert(WeaponSelector),
+        BottomRowContent::Build(buildable) => commands.entity(content).insert(BuildInfo(buildable)),
+        BottomRowContent::Manage { entity, buildable } => {
+            commands.entity(content).insert(ManageBuidable {
+                buildable,
+                entity
+            })
+        }
+    };
+
+    commands.entity(game_route).add_child(content);
+    commands.entity(current).insert(DespawnAfterFrames::TWO);
 }
 
 pub struct GameLayoutPlugin;
@@ -128,11 +133,19 @@ impl Plugin for GameLayoutPlugin {
     fn build(&self, app: &mut App) {
         app
 
-            .add_systems(Update, build_info_display_system
-                .run_if(on_event::<BuildableSelecedEvent>()))
+            .init_resource::<BottomRowContent>()
+            .add_event::<BottomRowContentChangedEvent>()
 
-            .add_systems(Update, hide_build_info_system
-                .run_if(on_event::<InfoClosedEvent>()));
+            .add_systems(OnEnter(AppState::InGame), |mut commands: Commands| {
+                commands.spawn(InfoText);
+            })
+
+            .observe(update_bottom_row_trigger)
+
+            // .add_systems(Update, update_bottom_row_trigger
+            //     .run_if(on_event::<BottomRowContentChangedEvent>()))
+
+            ;
     }
 }
 

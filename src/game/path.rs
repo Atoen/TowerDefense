@@ -1,4 +1,4 @@
-use std::{default, time::Duration};
+use std::time::Duration;
 
 use bevy_tweening::{lens::TransformScaleLens, Animator, EaseFunction, RepeatCount, RepeatStrategy, Tween};
 use game::GameLayerOrder;
@@ -33,7 +33,8 @@ impl Default for PathFollowerSpawnTimer {
     }
 }
 
-fn path_changed_system(
+fn path_changed_trigger(
+    _trigger: Trigger<PathChangedEvent>,
     mut commands: Commands,
     mut spawn_timer: ResMut<PathFollowerSpawnTimer>,
     grid: Res<GameGrid>,
@@ -183,11 +184,10 @@ impl Plugin for PathPlugin {
         app
 
             .init_resource::<PathFollowerSpawnTimer>()
+            .add_event::<PathChangedEvent>()
 
             .add_systems(Update, (
-                spawn_path_followers,
-                path_changed_system
-                    .run_if(on_event::<PathChangedEvent>())
+                spawn_path_followers
             ).run_if(
                 in_state(AppState::InGame).and_then(
                     in_state(GameState::BuildingPhase)
@@ -196,6 +196,10 @@ impl Plugin for PathPlugin {
             .add_systems(Update, move_along_path
                 .run_if(in_state(AppState::InGame)))
 
-            .add_systems(OnEnter(GameState::AttackWave), clear_path);
+            .add_systems(OnEnter(GameState::AttackWave), clear_path)
+
+            .observe(path_changed_trigger)
+
+            ;
     }
 }

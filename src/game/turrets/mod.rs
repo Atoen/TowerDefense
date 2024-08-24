@@ -10,6 +10,12 @@ const DEFAULT_PROJECTILE_SPEED: f32 = 300.0;
 const TARGET_RADIUS: f32 = 20.0;
 const DESPAWN_MARGIN: f32 = 200.0;
 
+#[derive(Event)]
+pub struct TurretUpgradedEvent {
+    pub turret: Turret,
+    pub level: u8
+}
+
 fn projectile_system(
     mut commands: Commands,
     time: Res<Time>,
@@ -70,49 +76,6 @@ fn projectile_system(
     }
 }
 
-fn consumable_damage_system(
-    time: Res<Time>,
-    mut commands: Commands,
-    mut aliens: Query<(&GlobalTransform, &mut Alien)>,
-    mut consumables: Query<(Entity, &Transform, AnyOf<(&mut RotorBlades, &ProximityMine)>)>
-) {
-    'consumables: for (consumable_entity, consumable_transform, mut blades_or_mine) in &mut consumables {
-        for (alien_transform, mut alien) in &mut aliens {
-
-            let distance_2 = alien_transform.translation().distance_squared(consumable_transform.translation);
-
-            match blades_or_mine {
-                (None, Some(mine)) => {
-                    if mine.trigger_radius * mine.trigger_radius >= distance_2 {
-                        commands.entity(consumable_entity).despawn();
-
-                        continue 'consumables;
-                    }
-                }
-                (Some(ref mut blades), None) => {
-                    if blades.durability <= 0.0 {
-                        commands.entity(consumable_entity).despawn();
-
-                        continue 'consumables;
-                    }
-
-                    if blades.radius * blades.radius >= distance_2 {
-                        alien.add_damage(&blades.damage);
-                        blades.durability -= time.delta_seconds();
-
-                        if blades.durability <= 0.0 {
-                            commands.entity(consumable_entity).despawn_recursive();
-
-                            continue 'consumables;
-                        }
-                    }
-                }
-                _ => { }
-            }
-        }
-    } 
-}
-
 pub struct TurretsPlugin;
 
 impl Plugin for TurretsPlugin {
@@ -122,12 +85,12 @@ impl Plugin for TurretsPlugin {
                 projectile_system,
                 turret_targeting_system,
                 projectile_turret_attack_system,
-                consumable_damage_system
             ).run_if(in_state(GameState::AttackWave)))
 
             .add_systems(Update, (
                 flag_idle_turrets,
                 idle_rotation_system,
+                upgrade_turret_system
             ).run_if(in_state(AppState::InGame)))
 
             ;

@@ -1,10 +1,77 @@
 use ::core::f32;
+use std::time::Duration;
 
 use bevy_prng::WyRand;
 use bevy_rand::prelude::GlobalEntropy;
+use bevy_tweening::{lens::{SpriteColorLens, TransformPositionLens}, Animator, EaseFunction, Tween};
+use game::GameLayerOrder;
 use rand::RngCore;
 
 use crate::*;
+
+pub fn upgrade_turret_system(
+    mut commands: Commands,
+    mut parent_query: Query<(Entity, &Children, &mut TurretLevel, &mut TextureAtlas, &Transform), With<RaiseTurretLevel>>,
+    mut child_query: Query<(&mut TurretLevel, &Turret), Without<RaiseTurretLevel>>,
+    game_textures: Res<GameTextures>
+) {
+    for (entity, chlidren, mut level, mut atlas, transform) in &mut parent_query {
+        level.0 += 1;
+        atlas.index += 1;
+
+        let Some(child) = chlidren.first() else { continue };
+        let Ok((mut child_level, turret)) = child_query.get_mut(*child) else {
+            warn!("Missing turret child entity!");
+            return;
+        };
+
+        child_level.0 += 1;
+
+        commands.trigger(TurretUpgradedEvent {
+            turret: *turret,
+            level: level.0
+        });
+        
+        commands.entity(entity).remove::<RaiseTurretLevel>();
+
+        let start_pos = transform.translation.on(GameLayer::UPGRADE_ARROW) + Vec3::new(0.0, -25.0, 0.0);
+        let end_pos = start_pos + Vec3::new(0.0, 75.0, 0.0);
+
+        let translation_tween = Tween::new(
+            EaseFunction::QuadraticOut,
+            Duration::from_secs(3),
+            TransformPositionLens {
+                start: start_pos,
+                end: end_pos
+            }
+        );
+
+        let alpha_tween = Tween::new(
+            EaseFunction::QuadraticOut,
+            Duration::from_secs(3),
+            SpriteColorLens {
+                start: Color::srgb(201./255., 238./255., 252./255.),
+                end: Color::NONE
+            }
+        );
+
+        commands.spawn((
+            DespawnAfter(Timer::from_seconds(3.0, TimerMode::Once)),
+            Animator::new(translation_tween),
+            Animator::new(alpha_tween),
+            SpriteBundle {
+                texture: game_textures.upgrade_arrow.clone(),
+                transform: Transform {
+                    translation: start_pos,
+                    scale: Vec3::splat(0.5),
+                    ..default()
+                },
+                ..default()
+            },
+            RenderLayers::layer(1)
+        ));
+    }
+}
 
 pub fn flag_idle_turrets(
     time: Res<Time>,
@@ -86,17 +153,19 @@ fn get_target_weight(alien: &Alien, targeting_mode: &TargetingMode) -> f32 {
 
 pub fn turret_targeting_system(
     time: Res<Time>,
-    mut turrets: Query<(&mut TargetingTurret, &mut Transform, &GlobalTransform, Option<&RotationSpeed>), Without<Alien>>,
+    mut turrets: Query<(&mut TargetingTurret, &mut Transform, &GlobalTransform, &TurretLevel, &Turret, Option<&RotationSpeed>), Without<Alien>>,
     aliens: Query<(Entity, &GlobalTransform, &Alien)>
 ) {
     for (
         mut turret,
         mut turret_transform,
         turret_global_transform,
+        turret_level,
+        turret_type,
         rotation_speed
     ) in &mut turrets {
 
-        let turret_radius_2 = turret.targeting_radius * turret.targeting_radius;
+        let turret_radius_2 = get_turret_range_squared(*turret_type, turret_level.0);
         let mut displacement = Vec2::ZERO; 
 
         // Does turret already have a target

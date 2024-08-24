@@ -11,84 +11,159 @@ struct SelectedCellMarker;
 #[derive(Resource, Default)]
 pub struct SelectedCell(pub Option<UVec2>);
 
-fn highlight_clicked_cell_system(
+#[derive(Event)]
+pub struct CellSelectionChangedEvent(pub Option<UVec2>);
+
+#[derive(Event)]
+pub struct DeselectCell;
+
+fn highlight_clicked_cell_trigger(
+    trigger: Trigger<GameCellClickedEvent>,
     mut commands: Commands,
-    mut reader: EventReader<GameCellClickedEvent>,
     mut query: Query<(Entity, &mut Transform), With<SelectedCellMarker>>,
+    mut selected_cell: ResMut<SelectedCell>,
     game_textures: Res<GameTextures>,
-    selected_buildable: Res<SelectedBuildable>
+    bottom_row: Res<BottomRowContent>,
+
 ) {
-    for event in reader.read() {
+    if let Some(cell_pos) = trigger.event().0 {
+        
+        if let Ok((entity, mut transform)) = query.get_single_mut() {
 
-        if let Some(cell_pos) = event.0 {
+            let row_is_building = matches!(*bottom_row, BottomRowContent::Build(_));
+            let same_cell_pos = selected_cell.0.map_or(false, |selected_cell_pos| {
+                selected_cell_pos == cell_pos
+            });
             
-            if let Ok((entity, mut transform)) = query.get_single_mut() {
+            if same_cell_pos && !row_is_building {
+                commands.entity(entity).despawn();
+                selected_cell.0 = None;
 
-                let pos = cell_to_world_pos(&cell_pos).on(GameLayer::SELECTED_CELL);
-                if transform.translation == pos && selected_buildable.0.is_none() {
-                    commands.entity(entity).despawn();
-                    debug!("Deselected cell");
-                } else {
-                    transform.translation = pos;
-                    debug!("Selected cell at {:?}", cell_pos);
-                }
+                debug!("Unselected cell");
+
             } else {
-
-                let tween = Tween::new(
-                    EaseFunction::QuadraticInOut,
-                    Duration::from_millis(800),
-                    TransformScaleLens {
-                        start: Vec3::splat(0.9),
-                        end: Vec3::splat(1.1)
-                    }
-                ).with_repeat_count(RepeatCount::Infinite)
-                    .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
-
-                commands.spawn((
-                    SpriteBundle {
-                        texture: game_textures.selected_cell.clone(),
-                        transform: Transform {
-                            translation: cell_to_world_pos(&cell_pos).on(GameLayer::SELECTED_CELL),
-                            ..default()
-                        },
-                        ..default()
-                    },
-                    Animator::new(tween),
-                    SelectedCellMarker,
-                    RenderLayers::layer(1)
-                ));
+                let pos = cell_to_world_pos(&cell_pos).on(GameLayer::SELECTED_CELL);
+                transform.translation = pos;
+                selected_cell.0 = Some(cell_pos);
 
                 debug!("Selected cell at {:?}", cell_pos);
             }
-        } else if let Ok((entity, _)) = query.get_single_mut() {
-            commands.entity(entity).despawn();
 
-            debug!("Removed cell selection");
+            commands.trigger(CellSelectionChangedEvent(Some(cell_pos)));
+        } else {
+
+            let tween = Tween::new(
+                EaseFunction::QuadraticInOut,
+                Duration::from_millis(800),
+                TransformScaleLens {
+                    start: Vec3::splat(0.9),
+                    end: Vec3::splat(1.1)
+                }
+            ).with_repeat_count(RepeatCount::Infinite)
+                .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
+
+            commands.spawn((
+                SpriteBundle {
+                    texture: game_textures.selected_cell.clone(),
+                    transform: Transform {
+                        translation: cell_to_world_pos(&cell_pos).on(GameLayer::SELECTED_CELL),
+                        ..default()
+                    },
+                    ..default()
+                },
+                Animator::new(tween),
+                SelectedCellMarker,
+                RenderLayers::layer(1)
+            ));
+
+            selected_cell.0 = Some(cell_pos);
+            debug!("Selected cell at {:?}", cell_pos);
+            
+            commands.trigger(CellSelectionChangedEvent(Some(cell_pos)));
+
         }
+    } else if let Ok((entity, _)) = query.get_single_mut() {
+        commands.entity(entity).despawn();
+        selected_cell.0 = None;
+
+        debug!("Removed cell selection");
+
+        commands.trigger(CellSelectionChangedEvent(None));
     }
 }
 
-fn build_system(
+fn automatic_page_navigation_trigger(
+    trigger: Trigger<GameCellClickedEvent>,
     mut commands: Commands,
-    mut reader: EventReader<GameCellClickedEvent>,
-    mut writer: EventWriter<PathChangedEvent>,
-    mut grid: ResMut<GameGrid>,
-    selected_buildable: Res<SelectedBuildable>,
-    game_textures: Res<GameTextures>
+    mut page: ResMut<WeaponSelectorPage>,
+    grid: ResMut<GameGrid>
 ) {
-    let Some(buildable) = &selected_buildable.0 else { return };
+    let Some(cell) = trigger.event().0.and_then(|cell_pos| grid.get_cell(&cell_pos)) else { 
+        return
+    };
 
-    for event in reader.read() {
-        let Some(cell_pos) = event.0 else { continue };
-
-        if buildable.is_module() {
-
-            let path_state = grid.try_place_module(&cell_pos, &mut commands, &game_textures);
-            if let PathState::Updated = path_state {
-                writer.send(PathChangedEvent);
-            }
+    if cell.has_moudle() {
+        if *page == WeaponSelectorPage::Building {
+            *page = WeaponSelectorPage::Standard;
+            commands.trigger(PageChangedEvent(*page));
         }
+    } else if *page != WeaponSelectorPage::Building {
+        *page = WeaponSelectorPage::Building;
+        commands.trigger(PageChangedEvent(*page));
     }
+
+}
+
+fn build_module_trigger(
+    trigger: Trigger<GameCellClickedEvent>,
+    mut commands: Commands,
+    mut grid: ResMut<GameGrid>,
+    game_textures: Res<GameTextures>,
+    bottom_row: Res<BottomRowContent>
+) {
+    let BottomRowContent::Build(buildable) = *bottom_row else { return };
+    if !buildable.is_module() { return }
+
+    let Some(cell_pos) = trigger.event().0 else { return };
+
+    let path_state = grid.try_place_module(&cell_pos, &mut commands, &game_textures);
+    if let PathState::Updated = path_state {
+        commands.trigger(PathChangedEvent);
+    }
+}
+
+fn display_manage_trigger(
+    trigger: Trigger<GameCellClickedEvent>,
+    mut commands: Commands,
+    mut bottom_row: ResMut<BottomRowContent>,
+    grid: Res<GameGrid>
+) {
+    let Some((entity, buildable)) = trigger.event().0
+        .and_then(|cell_pos| grid.get_cell(&cell_pos))
+        .and_then(|cell| cell.managable_buildable()) else {
+
+        if matches!(*bottom_row, BottomRowContent::Manage {..}) {
+            *bottom_row = BottomRowContent::Selector;
+            commands.trigger(BottomRowContentChangedEvent(*bottom_row));
+        }
+
+        return
+    };
+
+    *bottom_row = BottomRowContent::Manage { entity, buildable };
+    commands.trigger(BottomRowContentChangedEvent(*bottom_row));
+}
+
+fn deselect_cell_trigger(
+    _trigger: Trigger<DeselectCell>,
+    query: Query<Entity, With<SelectedCellMarker>>,
+    mut commands: Commands,
+    mut selected_cell: ResMut<SelectedCell>,
+) {
+    let Ok(entity) = query.get_single() else { return };
+
+    commands.entity(entity).despawn();
+    selected_cell.0 = None;
 }
 
 #[derive(Event)]
@@ -101,14 +176,14 @@ impl Plugin for CellSelectionPlugin {
 
             .init_resource::<GameGrid>()
             .init_resource::<SelectedCell>()
+            .add_event::<CellSelectionChangedEvent>()
 
-            .add_event::<PathChangedEvent>()
+            .observe(highlight_clicked_cell_trigger)
+            .observe(automatic_page_navigation_trigger)
+            .observe(build_module_trigger)
+            .observe(display_manage_trigger)
+            .observe(deselect_cell_trigger)
 
-            .add_systems(Update, (
-                build_system,
-                highlight_clicked_cell_system
-            ).run_if(in_state(AppState::InGame).and_then(
-                on_event::<GameCellClickedEvent>()
-            )));
+            ;
     }
 }
