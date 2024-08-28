@@ -1,6 +1,9 @@
 pub mod button;
 pub use button::*;
 
+pub mod new_button;
+pub use new_button::*;
+
 pub mod menu_button;
 pub use menu_button::*;
 
@@ -33,10 +36,29 @@ pub use manage_buildable::*;
 
 use bevy::prelude::*;
 
+fn update_button_colors(
+    mut buttons: Query<(Option<&bevy_mod_picking::prelude::PickingInteraction>, &mut BackgroundColor), With<bevy::ui::widget::Button>>,
+) {
+    use bevy_mod_picking::prelude::PickingInteraction;
+
+    for (interaction, mut button_color) in &mut buttons {
+        *button_color = match interaction {
+            Some(PickingInteraction::Pressed) => Color::srgb(0.35, 0.75, 0.35),
+            Some(PickingInteraction::Hovered) => Color::srgb(0.25, 0.25, 0.25),
+            Some(PickingInteraction::None) | None => Color::srgb(0.15, 0.15, 0.15),
+        }
+        .into();
+    }
+}
+
+
 pub struct ComponentPlugin;
 impl Plugin for ComponentPlugin {
     fn build(&self, app: &mut App) {
         app
+
+            .add_systems(Update, update_button_colors)
+
             .add_plugins(ButtonPlugin)
             .add_plugins(GameStatusPlugin)
             .add_plugins(WaponSelectorPlugin)

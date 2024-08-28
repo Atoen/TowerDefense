@@ -39,11 +39,10 @@ fn game_arena_clicked_system(
     mut game_camera: Query<(&mut Transform, &OrthographicProjection), With<GameCamera>>,
     game_arena: Query<Option<&PickingInteraction>, With<GameArena>>
 ) {
-    let Ok(Some(PickingInteraction::Hovered) | Some(PickingInteraction::Pressed)) = game_arena.get_single() else { 
-        input_data.input_held = false;
-        input_data.is_dragging = false;
+    if let Ok(Some(PickingInteraction::Hovered | PickingInteraction::Pressed)) = game_arena.get_single() {
+    } else if !input_data.is_dragging {
         return
-     };
+    }
 
     let window = windows.single();
     let Some(cursor_pos) = window.cursor_position() else { 

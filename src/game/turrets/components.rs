@@ -12,6 +12,12 @@ pub struct ProjectileTurret;
 #[derive(Component)]
 pub struct AttackDelay(pub Timer);
 
+impl AttackDelay {
+    pub fn from_fire_rate(fire_rate: f32) -> Self {
+        Self(Timer::from_seconds(fire_rate.recip(), TimerMode::Repeating))
+    }
+}
+
 #[derive(Component, Default)]
 pub struct TargetingTurret {
     pub current_angle: f32,

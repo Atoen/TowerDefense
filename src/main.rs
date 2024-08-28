@@ -10,7 +10,7 @@ use bevy::render::view::RenderLayers;
 use bevy::render::RenderPlugin;
 use bevy::render::settings::{Backends, RenderCreation, WgpuSettings};
 use bevy::sprite::Anchor;
-use bevy::window::PrimaryWindow;
+use bevy::window::{PresentMode, PrimaryWindow};
 use bevy_prng::WyRand;
 use bevy_rand::plugin::EntropyPlugin;
 use bevy_tweening::TweeningPlugin;
@@ -43,24 +43,6 @@ use turrets::*;
 
 mod game;
 use game::*;
-
-// #[derive(Debug, Default, Clone, PartialEq, Eq, Display, EnumIter, EnumCount)]
-// pub enum TurretType {
-//     #[default] 
-//     PulseBlaster,   // ✔
-//     IonCannon,      // ✔
-//     SwarmTurret,    // ✔
-//     PlasmaRay,      // ❌
-//     RailGun,        // ❌
-//     CryoGenerator,  // ✔
-//     Tesla,          // ✔
-//     SeekerLauncher, // ✔
-//     AcidSprayer,    // ✔ 
-//     FireThrower,    // ✔
-//     Sentinel        // ❌
-// }
-
-// pub struct SelectedWeapon(pub Option<TurretType>);
 
 #[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash, Display)]
 pub enum PausedState {
@@ -103,6 +85,12 @@ fn main() {
     let default_plugins = DefaultPlugins.set(RenderPlugin {
         render_creation: RenderCreation::Automatic(WgpuSettings {
             backends: Some(Backends::VULKAN),
+            ..default()
+        }),
+        ..default()
+    }).set(WindowPlugin {
+        primary_window: Some(Window {
+            present_mode: PresentMode::AutoNoVsync,
             ..default()
         }),
         ..default()
@@ -271,7 +259,7 @@ fn setup(
         );
     });
 
-    commands.spawn(MainMenuRoute);
+    commands.spawn(MainMenuPage);
 }
 
 #[derive(Component)]

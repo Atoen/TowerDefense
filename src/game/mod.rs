@@ -78,7 +78,6 @@ impl GameLayerOrder for Vec3 {
     }
 }
 
-
 fn setup_game(
     mut commands: Commands,
     game_textures: Res<GameTextures>,

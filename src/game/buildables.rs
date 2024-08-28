@@ -61,13 +61,13 @@ pub enum Turret {
     PlasmaRay,          
     CryoGenerator, 
     Tesla,         
-    SeekerLauncher,
-    AcidSprayer,    
+    AcidSprayer, 
     FireThrower,
-
+    
     // Advanced
+    SeekerLauncher,
     Sentinel,
-    CyberOro,
+    Recycler,
     RailGun,
 }
 

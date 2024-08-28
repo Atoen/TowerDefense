@@ -1,73 +1,63 @@
 use bevy::ecs::component::StorageType;
+use routes::AppSettingsPage;
 
 use crate::*;
 
 #[derive(Debug)]
-pub struct MainMenuRoute;
+pub struct MainMenuPage;
 
-impl Component for MainMenuRoute {
+impl Component for MainMenuPage {
     const STORAGE_TYPE: StorageType = StorageType::Table;
 
     fn register_component_hooks(_hooks: &mut bevy::ecs::component::ComponentHooks) {
         _hooks.on_add(|mut world, entity, _| {
-
-            let material = world
-                .resource_mut::<Assets<ColorMaterial>>()
-                .add(Color::GRAY_900);
             
             let mut commands = world.commands();
 
             commands.entity(entity).insert(
-                SpatialBundle::default()
-            ).with_children(|route| {
+                NodeBundle {
+                    style: Style {
+                        width: Val::Percent(100.0),
+                        height: Val::Percent(100.0),
 
-                route.spawn((
-                    UiTreeBundle::<MainUi>::from(UiTree::new2d("Main Menu")),
-                    MovableByCamera
-                )).with_children(|ui| {
+                        justify_content: JustifyContent::End,
 
-                    let root = UiLink::<MainUi>::path("Root");
-                    ui.spawn((
-                        root.clone(),
-                        UiLayout::window_full().pack::<Base>()
-                    ));
-    
-                    ui.spawn((
-                        root.add("Background"),
-                        UiLayout::solid().size((1920.0, 1080.0)).scaling(Scaling::Fill).pack::<Base>(),
-                        UiMaterial2dBundle {
-                            material,
+                        ..default()
+                    },
+                    ..default()
+                }
+            ).with_children(|background| {
+                background.spawn(
+                    NodeBundle {
+                        style: Style {
+                            height: Val::Percent(100.0),
+                            width: Val::Percent(30.0),
+
+                            display: Display::Flex,
+                            flex_direction: FlexDirection::Column,
+                            row_gap: Val::Px(10.0),
+                            padding: UiRect::all(Val::Px(10.0)),
+
                             ..default()
-                        }
-                    ));
-    
-                    let board = root.add("Solid");
-                    ui.spawn((
-                        board.clone(),
-                        UiLayout::solid().size((1.0, 2.5)).align_x(1.0).pack::<Base>(),
-                    ));
-    
-                    let list = board.add("List");
-                    ui.spawn((
-                        list.clone(),
-                        UiLayout::window().pos(Rl(15.0)).size(Rl((80.0, 34.0))).pack::<Base>()
-                    ));
-    
-                    let gap = 3.0;
-                    let size = 14.0;
-                    let mut offset = 0.0;
-    
+                        },
+                        background_color: Color::RED.into(),
+                        ..default()
+                    }
+                ).with_children(|sidebar| {
                     for button_type in MainMenuButton::iter() {
-                        ui.spawn((
-                            list.add(button_type.str()),
-                            button_type.clone(),
-                            UiLayout::window().y(Rl(offset)).size(Rl((100.0, size))).pack::<Base>(),
-                            MenuButton {
-                                text: button_type.str()
+                        sidebar.spawn((
+                            ButtonBundle {
+                                style: main_button_style(),
+                                ..default()
                             },
-                        ));
-    
-                        offset += gap + size;
+                            On::<Pointer<Click>>::run(main_menu_button_clicked),
+                            button_type
+                        )).with_children(|button| {
+                            button.spawn((
+                                TextBundle::from_section(button_type.to_string(), main_button_text_style()),
+                                Pickable::IGNORE
+                            ));
+                        });
                     }
                 });
             });
@@ -75,7 +65,7 @@ impl Component for MainMenuRoute {
     }
 }
 
-#[derive(Component, Clone, PartialEq, EnumIter)]
+#[derive(Component, Clone, PartialEq, EnumIter, Copy)]
 enum MainMenuButton {
     Continue,
     NewGame,
@@ -83,57 +73,63 @@ enum MainMenuButton {
     QuitGame
 }
 
-impl MainMenuButton {
-    fn str(&self) -> String {
-        match self {
-            MainMenuButton::Continue => "CONTINUE".into(),
-            MainMenuButton::NewGame => "NEW GAME".into(),
-            MainMenuButton::Settings => "SETTINGS".into(),
-            MainMenuButton::QuitGame => "QUIT GAME".into(),
-        }
+impl std::fmt::Display for MainMenuButton {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let output = match self {
+            MainMenuButton::Continue => "CONTINUE",
+            MainMenuButton::NewGame => "NEW GAME",
+            MainMenuButton::Settings => "SETTINGS",
+            MainMenuButton::QuitGame => "QUIT GAME",
+        };
+
+        write!(f, "{output}")
     }
 }
 
-fn main_menu_button_clicked_system(
-    mut events: EventReader<UiClickEvent>,
+fn main_button_style() -> Style {
+    Style {
+        ..default()
+    }
+}
+
+fn main_button_text_style() -> TextStyle {
+    TextStyle {
+        color: Color::WHITE,
+        font_size: 40.0,
+        ..default()
+    }
+}
+
+fn main_menu_button_clicked(
+    listener: Listener<Pointer<Click>>,
+    query: Query<Entity, With<MainMenuPage>>,
+    buttons: Query<&MainMenuButton>,
     mut commands: Commands,
-    main_menu_route: Query<Entity, With<MainMenuRoute>>,
-    query: Query<&MainMenuButton, With<MenuButton>>,
     mut next_state: ResMut<NextState<AppState>>,
     mut exit: EventWriter<AppExit>,
 ) {
-    for event in events.read() {
-        if let Ok(button) = query.get(event.target) {
+    let target = listener.target;
+    let Ok(button) = buttons.get(target) else { return };
+    let Ok(main_menu) = query.get_single() else { return };
 
-            let Ok(main_menu_route) = main_menu_route.get_single() else {
-                error!("Unable to find MainMenuRoute component!");
-                return
-            };
+    info!("Clicked: {}", button.to_string());
 
-            info!("Pressed: {}", button.str());
+    match button {
+        MainMenuButton::Continue => { }
+        MainMenuButton::NewGame => {
+            commands.entity(main_menu).despawn_recursive();
+            commands.spawn(GameRoute);
 
-            match button {
-                MainMenuButton::NewGame => { 
-                    commands.entity(main_menu_route).insert(DespawnAfterFrames::ONE);
-                    commands.spawn(GameRoute);
-
-                    next_state.set(AppState::InGame);
-                },
-                MainMenuButton::QuitGame => {
-                     exit.send(AppExit::Success);
-                },
-                _ => {}
-            }
+            next_state.set(AppState::InGame);
         }
-    }
-}
 
-pub struct MainMenuRoutePlugin;
-impl Plugin for MainMenuRoutePlugin {
-    fn build(&self, app: &mut App) {
-        app
-            .add_systems(PostUpdate, main_menu_button_clicked_system
-                .run_if(input_just_pressed(MouseButton::Left))
-            );
-    }
+        MainMenuButton::Settings => {
+            commands.entity(main_menu).despawn_recursive();
+            commands.spawn(AppSettingsPage);
+        }
+
+        MainMenuButton::QuitGame => {
+            exit.send(AppExit::Success);
+        }
+    };
 }

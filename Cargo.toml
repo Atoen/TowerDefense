@@ -12,6 +12,7 @@ bevy_tweening = "0.11"
 rand_core = "0.6"
 bevy_rand = "0.7"
 bevy_prng = { version = "0.7", features = ["rand_chacha", "wyrand"] }
+bevy_mod_picking = "0.20"
 rand = "0.8.5"
 strum = "0.26"
 strum_macros = "0.26"

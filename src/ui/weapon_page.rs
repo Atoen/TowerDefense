@@ -28,14 +28,14 @@ impl Component for WeaponPage {
                         Turret::PlasmaRay,
                         Turret::CryoGenerator,
                         Turret::Tesla,
-                        Turret::SeekerLauncher,
                         Turret::AcidSprayer,
                         Turret::FireThrower
-                    ].into_iter().map(Buildable::Turret).collect(),
-    
-                    WeaponSelectorPage::Advanced => vec![
+                        ].into_iter().map(Buildable::Turret).collect(),
+                        
+                        WeaponSelectorPage::Advanced => vec![
+                        Turret::SeekerLauncher,
                         Turret::Sentinel,
-                        Turret::CyberOro,
+                        Turret::Recycler,
                         Turret::RailGun
                     ].into_iter().map(Buildable::Turret).collect(),
     

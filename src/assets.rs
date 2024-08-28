@@ -9,10 +9,19 @@ impl AssetPath {
 
     const TURRET_RING_SHEET: &'static str = "images/turret_ring_sheet.png";
 
-    const ACID_SPRAYER: &'static str = "turrets/AcidSprayer.png";
-    const PLASMA_RAY: &'static str = "turrets/PlasmaRay.png";
-    const PULSE_BLASTER: &'static str = "turrets/PulseBlaster.png";
-    const RAIL_GUN: &'static str = "turrets/RailGun.png";
+    const ACID_SPRAYER: &'static str = "turrets/acid_sprayer.png";
+    const CRYO_GENERATOR: &'static str = "turrets/cryo_generator.png";
+    const FIRE_THROWER: &'static str = "turrets/fire_thrower.png";
+    const ION_CANNON: &'static str = "turrets/ion_cannon.png";
+    const PLASMA_RAY: &'static str = "turrets/plasma_ray.png";
+    const PULSE_BLASTER: &'static str = "turrets/pulse_blaster.png";
+    const RAIL_GUN: &'static str = "turrets/rail_gun.png";
+    const RECYCLER_BASE: &'static str = "turrets/recycler_base.png";
+    const RECYCLER_SPINNER: &'static str = "turrets/recycler_spinner.png";
+    const SEEKER_LAUNCHER: &'static str = "turrets/seeker_launcher.png";
+    const SENTINEL: &'static str = "turrets/sentinel.png";
+    const SWARM_TURRET: &'static str = "turrets/swarm_turret.png";
+    const TESLA: &'static str = "turrets/tesla.png";
 
     const ARROW_LEFT: &'static str = "images/arrow_left.png";
     const ARROW_RIGHT: &'static str = "images/arrow_right.png";
@@ -72,9 +81,19 @@ pub struct GameTextures {
     pub turret_ring_atlas: Handle<TextureAtlasLayout>,
 
     pub acid_sprayer: Handle<Image>,
+    pub cryo_generator: Handle<Image>,
+    pub fire_thrower: Handle<Image>,
+    pub ion_cannon: Handle<Image>,
     pub plasma_ray: Handle<Image>,
     pub pulse_blaster: Handle<Image>,
     pub rail_gun: Handle<Image>,
+    pub recycler_base: Handle<Image>,
+    pub recycler_spinner: Handle<Image>,
+    pub seeker_launcher: Handle<Image>,
+    pub sentinel: Handle<Image>,
+    pub swarm_turret: Handle<Image>,
+    pub tesla: Handle<Image>,
+
     pub bullet: Handle<Image>,
 
     pub path_dot: Handle<Image>,
@@ -109,9 +128,18 @@ impl GameTextures {
             turret_ring_texture: turret_ring_sheet_handle,
 
             acid_sprayer: asset_server.load(AssetPath::ACID_SPRAYER),
+            cryo_generator: asset_server.load(AssetPath::CRYO_GENERATOR),
+            fire_thrower: asset_server.load(AssetPath::FIRE_THROWER),
+            ion_cannon: asset_server.load(AssetPath::ION_CANNON),
             plasma_ray: asset_server.load(AssetPath::PLASMA_RAY),
             pulse_blaster: asset_server.load(AssetPath::PULSE_BLASTER),
             rail_gun: asset_server.load(AssetPath::RAIL_GUN),
+            recycler_base: asset_server.load(AssetPath::RECYCLER_BASE),
+            recycler_spinner: asset_server.load(AssetPath::RECYCLER_SPINNER),
+            seeker_launcher: asset_server.load(AssetPath::SEEKER_LAUNCHER),
+            sentinel: asset_server.load(AssetPath::SENTINEL),
+            swarm_turret: asset_server.load(AssetPath::SWARM_TURRET),
+            tesla: asset_server.load(AssetPath::TESLA),
 
             bullet: asset_server.load(AssetPath::BULLET),
 

@@ -3,7 +3,7 @@ use bevy::diagnostic::DiagnosticsStore;
 use crate::*;
 
 #[derive(Component)]
-struct FpsRoot;
+pub struct FpsRoot;
 
 #[derive(Component)]
 struct FpsText;
@@ -71,6 +71,7 @@ fn setup_fps_counter(
                 padding: UiRect::all(Val::Px(4.0)),
                 ..default()
             },
+            visibility: Visibility::Hidden,
             ..default()
         },
     )).id();
@@ -136,8 +137,13 @@ fn fps_text_update_system(
     }
 }
 
+#[derive(Event)]
+pub struct FpsCounterVisibilityChanged;
+
 fn fps_counter_showhide(
+    mut commands: Commands,
     mut q: Query<&mut Visibility, With<FpsRoot>>,
+    mut app_settings: ResMut<AppSettings>,
     kbd: Res<ButtonInput<KeyCode>>,
 ) {
     if kbd.just_pressed(KeyCode::F3) {
@@ -146,6 +152,9 @@ fn fps_counter_showhide(
             Visibility::Hidden => Visibility::Visible,
             _ => Visibility::Hidden,
         };
+
+        app_settings.display_fps = matches!(*vis, Visibility::Inherited | Visibility::Visible);
+        commands.trigger(FpsCounterVisibilityChanged);
     }
 }
 
