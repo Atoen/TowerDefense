@@ -6,6 +6,12 @@ pub struct AssetPath;
 impl AssetPath {
     const CURSOR: &'static str = "images/cursor.png";
     const PAUSE: &'static str = "images/pause_icon.png";
+    const STAR: &'static str = "images/star.png";
+    const DOLLAR: &'static str = "images/dollar.png";
+    const UI_MODULE: &'static str = "images/ui_module.png";
+    const UI_CORE: &'static str = "images/ui_core.png";
+
+    const GRADIENT: &'static str = "images/gradient.png";
 
     const TURRET_RING_SHEET: &'static str = "images/turret_ring_sheet.png";
 
@@ -50,7 +56,14 @@ pub struct UiTextures {
     pub arrow_left: Handle<Image>,
     pub arrow_right: Handle<Image>,
     pub nebula: Handle<Image>,
-    pub pause: Handle<Image>
+
+    pub pause: Handle<Image>,
+    pub dollar: Handle<Image>,
+    pub star: Handle<Image>,
+    pub module: Handle<Image>,
+    pub core: Handle<Image>,
+
+    pub gradient: Handle<Image>,
 }
 
 impl UiTextures {
@@ -59,7 +72,14 @@ impl UiTextures {
             arrow_right: asset_server.load(AssetPath::ARROW_RIGHT),
             arrow_left: asset_server.load(AssetPath::ARROW_LEFT),
             nebula: asset_server.load(AssetPath::NEBULA),
-            pause: asset_server.load(AssetPath::PAUSE)
+
+            pause: asset_server.load(AssetPath::PAUSE),
+            dollar: asset_server.load(AssetPath::DOLLAR),
+            star: asset_server.load(AssetPath::STAR),
+            module: asset_server.load(AssetPath::UI_MODULE),
+            core: asset_server.load(AssetPath::UI_CORE),
+
+            gradient: asset_server.load(AssetPath::GRADIENT),
         }
     }
 }
@@ -76,6 +96,7 @@ pub struct GameTextures {
 
     pub core: Handle<Image>,
     pub portal: Handle<Image>,
+    pub grid_cell: Handle<Image>,
 
     pub turret_ring_texture: Handle<Image>,
     pub turret_ring_atlas: Handle<TextureAtlasLayout>,
@@ -123,6 +144,7 @@ impl GameTextures {
 
             core: asset_server.load(AssetPath::CORE),
             portal: asset_server.load(AssetPath::PORTAL),
+            grid_cell: asset_server.load(AssetPath::GRID_CELL),
 
             turret_ring_atlas: turret_ring_layout,
             turret_ring_texture: turret_ring_sheet_handle,

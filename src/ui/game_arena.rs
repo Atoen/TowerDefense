@@ -2,8 +2,10 @@ use bevy::input::mouse::{MouseButtonInput, MouseMotion, MouseScrollUnit, MouseWh
 
 use crate::*;
 
-#[derive(Component)]
-pub struct GameArena;
+#[derive(Component, Default)]
+pub struct GameArena {
+    pub is_mouse_over: bool
+}
 
 #[derive(Event)]
 pub struct GameArenaClickedEvent(pub Vec2);
@@ -27,8 +29,38 @@ impl Default for InputData {
     }
 }
 
+const BOTTOM_ROW_BASE_HEIGHT: f32 = 100.0;
+
 const DRAG_DISTANCE_THRESHOLD: f32 = 10.0;
 const DRAG_DISTANCE_THRESHOLD_2: f32 = DRAG_DISTANCE_THRESHOLD * DRAG_DISTANCE_THRESHOLD;
+
+fn interaction_system(
+    ui_scale: Res<UiScale>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    mut game_arena: Query<(Option<&PickingInteraction>, &mut GameArena)>
+) {
+
+    let Ok((interaction, mut game_arena)) = game_arena.get_single_mut() else { return };
+
+    let bottom_row_height = BOTTOM_ROW_BASE_HEIGHT * ui_scale.0;
+
+    let Ok(window) = windows.get_single() else { return };
+    let Some(cursor_pos) = window.cursor_position() else { 
+        game_arena.is_mouse_over = false;
+        return;
+    };
+
+    let bottom_row_start = window.height() - bottom_row_height;
+    game_arena.is_mouse_over = if cursor_pos.y < bottom_row_start {
+        if cursor_pos.y < 50.0 {
+            matches!(interaction, Some(PickingInteraction::Pressed | PickingInteraction::Hovered))
+        } else {
+            true
+        }
+    } else {
+        false
+    };
+}
 
 fn game_arena_clicked_system(
     windows: Query<&Window, With<PrimaryWindow>>,
@@ -37,11 +69,16 @@ fn game_arena_clicked_system(
     mut motion_events: EventReader<MouseMotion>,
     mut input_data: ResMut<InputData>,
     mut game_camera: Query<(&mut Transform, &OrthographicProjection), With<GameCamera>>,
-    game_arena: Query<Option<&PickingInteraction>, With<GameArena>>
+    game_arena: Query<&GameArena>
 ) {
-    if let Ok(Some(PickingInteraction::Hovered | PickingInteraction::Pressed)) = game_arena.get_single() {
-    } else if !input_data.is_dragging {
-        return
+    // if let Ok(Some(PickingInteraction::Hovered | PickingInteraction::Pressed)) = game_arena.get_single() {
+    // } else if !input_data.is_dragging {
+    //     return;
+    // }
+
+    let Ok(arena) = game_arena.get_single() else { return };
+    if !arena.is_mouse_over && !input_data.is_dragging {
+        return;
     }
 
     let window = windows.single();
@@ -112,10 +149,12 @@ fn move_camera(camera_transform: &mut Transform, displacement: &Vec2) {
 fn handle_scroll(
     windows: Query<&Window, With<PrimaryWindow>>,
     mut scroll: EventReader<MouseWheel>,
-    game_arena: Query<Option<&PickingInteraction>, With<GameArena>>,
+    game_arena: Query<&GameArena>,
     mut game_camera: Query<(&mut Transform, &mut OrthographicProjection), With<GameCamera>>
 ) {
-    let Ok(Some(PickingInteraction::Hovered)) = game_arena.get_single() else { return };
+    let Ok(arena) = game_arena.get_single() else { return };
+    if !arena.is_mouse_over { return }
+
     let Ok((mut transform, mut projection)) = game_camera.get_single_mut() else { return };
 
     let window = windows.single();
@@ -155,6 +194,7 @@ impl Plugin for GameArenaPlugin {
 
             .add_event::<GameArenaClickedEvent>()
 
+            .add_systems(Update, interaction_system)
             .add_systems(Update, handle_scroll)
 
             .add_systems(Update, game_arena_clicked_system

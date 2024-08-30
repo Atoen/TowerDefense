@@ -8,16 +8,17 @@ fn game_click_trigger(
     mut commanads: Commands,
     game_camera: Query<(&GlobalTransform, &OrthographicProjection), With<GameCamera>>,
     windows: Query<&Window, With<PrimaryWindow>>,
-    game_arena: Query<&Dimension, With<GameArena>>,
+    game_arena: Query<&FillContainer, With<GameArena>>,
 ) {
     let window = windows.single();
+
     let Ok((camera_global_transform, projection)) = game_camera.get_single() else { return };
 
     let world_cursor_pos = cursor_to_world_pos(trigger.event().0, window.size());
 
-    fn calculate_scale_factor(dimension: &Dimension) -> f32 {
+    fn calculate_scale_factor(fill_container: &FillContainer) -> f32 {
         // First pass render target height
-        1080.0 / dimension.size.y
+        1080.0 / fill_container.0.y
     }    
 
     let scale_factor = game_arena.get_single().map_or(1.5, calculate_scale_factor);

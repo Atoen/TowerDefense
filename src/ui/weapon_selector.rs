@@ -1,6 +1,5 @@
 use bevy::ecs::component::StorageType;
 use bevy::input::mouse::MouseWheel;
-use button::Button;
 
 use crate::*;
 
@@ -19,51 +18,65 @@ impl Component for WeaponSelector {
             let mut commands = world.commands();
 
             commands.entity(entity).insert(
-                UiTreeBundle::<WeaponSelectorUi>::from(UiTree::new2d("Weapon Selector"))
-            ).with_children(|ui| {
-                let row = UiLink::<WeaponSelectorUi>::path("Row");
-                ui.spawn((
-                    row.clone(),
-                    UiLayout::window_full().pack::<Base>()
-                ));
-    
-                ui.spawn((
-                    row.add("Page"),
-                    UiLayout::window()
-                        .pos((100.0, 0.0))
-                        .size((Rw(100.0) - Ab(200.0), Rh(100.0)))
-                        .pack::<Base>(),
-                    WeaponPage
-                ));
-    
-                ui.spawn((
-                    row.add("Previous Page"),
-                    UiLayout::window().pos((40.0, Rh(50.0))).size(40.0).anchor(Anchor::Center).pack::<Base>(),
-                    Button {
-                        hover_enlarge: false,
-                        text: None,
-                        image: Some(arrow_left)
+                NodeBundle {
+                    style: Style {
+                        position_type: PositionType::Absolute,
+                        width: Val::Percent(100.0),
+                        height: Val::Px(100.0),
+                        bottom: Val::Px(0.0),
+
+                        display: Display::Flex,
+                        justify_content: JustifyContent::SpaceBetween,
+                        padding: UiRect::horizontal(Val::Px(10.0)),
+                        align_items: AlignItems::Center,
+                        ..default()
                     },
-                    PageNavigation::Previous
-                ));
-    
-                ui.spawn((
-                    row.add("Next Page"),
-                    UiLayout::window().pos((Rw(100.0) - Ab(40.0), Rh(50.0))).size(40.0).anchor(Anchor::Center).pack::<Base>(),
-                    Button {
-                        hover_enlarge: false,
-                        text: None,
-                        image: Some(arrow_right)
+                    background_color: Color::BLACK.with_alpha(0.7).into(),
+                    z_index: ZIndex::Global(101),
+                    ..default()
+                }
+            ).with_children(|selector| {
+
+                selector.spawn((
+                    ImageBundle {
+                        image: arrow_left.into(),
+                        ..default()
                     },
-                    PageNavigation::Next
+                    PageNavigation::Previous,
+                    On::<Pointer<Click>>::run(page_navigation_clicked)
+                ));
+
+                selector.spawn((
+                    NodeBundle {
+                        style: Style {
+                            width: Val::Px(0.0),
+                            flex_grow: 1.0,
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        ..default()
+                    },
+                    PageContainer
+                )).with_children(|page_container| {
+                    page_container.spawn(WeaponPage);
+                });
+
+                selector.spawn((
+                    ImageBundle {
+                        image: arrow_right.clone().into(),
+                        ..default()
+                    },
+                    PageNavigation::Next,
+                    On::<Pointer<Click>>::run(page_navigation_clicked)
                 ));
             });
         });
     }
 }
 
-#[derive(Component, Debug, Default, Clone, PartialEq)]
-struct WeaponSelectorUi;
+#[derive(Component)]
+struct PageContainer;
 
 #[derive(Component, Clone, PartialEq, Display)]
 enum PageNavigation {
@@ -82,18 +95,17 @@ pub enum WeaponSelectorPage {
 #[derive(Event)]
 pub struct PageChangedEvent(pub WeaponSelectorPage);
 
-fn page_navigation_button_clicked_system(
-    mut events: EventReader<UiClickEvent>,
+fn page_navigation_clicked(
+    listener: Listener<Pointer<Click>>,
+    buttons: Query<&PageNavigation>,
     mut commands: Commands,
-    mut page: ResMut<WeaponSelectorPage>,
-    query: Query<&PageNavigation>
+    mut page: ResMut<WeaponSelectorPage>
 ) {
-    for event in events.read() {
-        if let Ok(navigation) = query.get(event.target) { 
-            *page = get_next_page(navigation, &page);
-            commands.trigger(PageChangedEvent(*page));
-        }
-    }
+    let target = listener.target;
+    let Ok(navigation) = buttons.get(target) else { return };
+
+    *page = get_next_page(navigation, &page);
+    commands.trigger(PageChangedEvent(*page));
 }
 
 fn handle_scroll(
@@ -130,26 +142,18 @@ fn get_next_page(navigation: &PageNavigation, current_page: &WeaponSelectorPage)
 fn page_changed_trigger(
     trigger: Trigger<PageChangedEvent>,
     mut commands: Commands,
-    weapon_selector: Query<Entity, With<WeaponSelector>>,
+    container: Query<Entity, With<PageContainer>>,
     current_page: Query<Entity, With<WeaponPage>>
 ) {
     info!("Current page: {}", trigger.event().0);
 
-    let Ok(weapon_selector) = weapon_selector.get_single() else { return };
+    let Ok(page_container) = container.get_single() else { return };
     let Ok(current_page) = current_page.get_single() else { return };
 
-    commands.entity(current_page).insert(DespawnAfterFrames::TWO);
+    commands.entity(current_page).despawn_recursive();
 
-    let new_page = commands.spawn((
-        UiLink::<WeaponSelectorUi>::path("Row/Page"),
-        UiLayout::window()
-            .pos((100.0, 0.0))
-            .size((Rw(100.0) - Ab(200.0), Rh(100.0)))
-            .pack::<Base>(),
-        WeaponPage
-    )).id();
-
-    commands.entity(weapon_selector).add_child(new_page);
+    let new_page = commands.spawn(WeaponPage).id();
+    commands.entity(page_container).add_child(new_page);
 }
 
 
@@ -158,15 +162,9 @@ impl Plugin for WaponSelectorPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_event::<PageChangedEvent>()
-            .add_plugins(UiGenericPlugin::<WeaponSelectorUi>::new())
-
             .init_resource::<WeaponSelectorPage>()
 
-            .add_systems(PostUpdate, handle_scroll)
-
-            .add_systems(PostUpdate, page_navigation_button_clicked_system
-                .distributive_run_if(on_event::<UiClickEvent>())
-                .distributive_run_if(input_just_pressed(MouseButton::Left)))
+            .add_systems(Update, handle_scroll)
             
             .observe(page_changed_trigger)
 

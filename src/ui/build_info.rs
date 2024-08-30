@@ -1,5 +1,4 @@
 use bevy::ecs::component::StorageType;
-use button::Button;
 
 use crate::*;
 
@@ -16,50 +15,40 @@ impl Component for BuildInfo {
             let mut commands = world.commands();
 
             commands.entity(entity).insert(
-                UiTreeBundle::<BuildInfoUi>::from(UiTree::new2d("Build Info"))
-            ).with_children(|ui| {
-    
-                let row = UiLink::<BuildInfoUi>::path("Row");
-                ui.spawn((
-                    row.clone(),
-                    UiLayout::window_full().pack::<Base>()
-                ));
-    
-                let width = Ab(60.0);
-                let height = Ab(30.0);
-                let spacing = Ab(20.0);
-    
-                let y = Rh(50.0) - height * 0.5;
-    
+                NodeBundle {
+                    style: Style {
+                        position_type: PositionType::Absolute,
+                        width: Val::Percent(100.0),
+                        height: Val::Px(100.0),
+                        bottom: Val::Px(0.0),
+
+                        display: Display::Flex,
+                        column_gap: Val::Px(30.0),
+
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    background_color: Color::BLACK.with_alpha(0.7).into(),
+                    z_index: ZIndex::Global(101),
+                    ..default()
+                }
+            ).with_children(|build_info| {
                 if buildable.is_module() {
-                    ui.spawn((
-                        row.add("Cancel"),
-                        UiLayout::window().pos((-width * 0.5 + Rw(50.0), y)).size((width, height)).pack::<Base>(),
-                        Button {
-                            hover_enlarge: false,
-                            image: None,
-                            text: Some("Cancel".into())
-                        },
-                        InfoButton::Cancel
+                    build_info.spawn((
+                        TextBundle::from_section("Done", text_style()),
+                        InfoButton::Cancel,
+                        On::<Pointer<Click>>::run(button_clicked)
                     ));
-    
+
                     return;
                 }
-    
-                let total_width = width * 3.0 + spacing * 2.0;
-                let initial_x = -total_width * 0.5 + Rw(50.0);
-    
-                for (index, button) in InfoButton::iter().enumerate() {
-                    let x = initial_x + (width + spacing) * index as f32;
-                    ui.spawn((
-                        row.add(button.to_string()),
-                        UiLayout::window().pos((x, y)).size((width, height)).pack::<Base>(),
-                        Button {
-                            hover_enlarge: false,
-                            image: None,
-                            text: Some(button.to_string())
-                        },
-                        button
+
+                for button in InfoButton::iter() {
+                    build_info.spawn((
+                        TextBundle::from_section(button.to_string(), text_style()),
+                        button,
+                        On::<Pointer<Click>>::run(button_clicked)
                     ));
                 }
             });
@@ -67,8 +56,6 @@ impl Component for BuildInfo {
     }
 }
 
-#[derive(Component, Clone)]
-struct BuildInfoUi;
 
 #[derive(Component, EnumIter, Display)]
 enum InfoButton {
@@ -77,43 +64,50 @@ enum InfoButton {
     Cancel
 }
 
-fn info_button_clicked_system(
-    mut events: EventReader<UiClickEvent>,
+fn text_style() -> TextStyle {
+    TextStyle {
+        font_size: 18.0,
+        color: Color::WHITE,
+        ..default()
+    }
+}
+
+fn button_clicked(
+    listener: Listener<Pointer<Click>>,
+    buttons: Query<&InfoButton>,
     mut commands: Commands,
     mut bottom_row: ResMut<BottomRowContent>,
     selected_cell: Res<SelectedCell>,
-    query: Query<&InfoButton>,
 ) {
-    for event in events.read() {
-        if let Ok(info_button) = query.get(event.target) {
-            debug!("Clicked: {}", info_button);
+    let target = listener.target;
+    let Ok(button) = buttons.get(target) else { return };
 
-            let BottomRowContent::Build(buildable) = *bottom_row else {
-                error!("Bottom row state mismatch! Current mode {:?}, expected: BottomRowContent::Build", bottom_row);
-                return
-            };
+    debug!("Clicked: {}", button);
 
-            match info_button {
-                InfoButton::Cancel => {
-                    *bottom_row = BottomRowContent::Selector;
-                    commands.trigger(BottomRowContentChangedEvent(*bottom_row));
-                }
+    let BottomRowContent::Build(buildable) = *bottom_row else {
+        error!("Bottom row state mismatch! Current mode {:?}, expected: BottomRowContent::Build", bottom_row);
+        return
+    };
 
-                InfoButton::Build => {
-                    let Some(cell_pos) = selected_cell.0 else { continue };
+    match button {
+        InfoButton::Cancel => {
+            *bottom_row = BottomRowContent::Selector;
+            commands.trigger(BottomRowContentChangedEvent(*bottom_row));
+        }
 
-                    if !buildable.is_module() {
-                        commands.trigger(BuildEvent {
-                            buildable,
-                            cell_pos
-                        });
-                    }
-                }
-                
-                InfoButton::Info => {
-                    info!("Displaying info about {}", buildable);
-                }
+        InfoButton::Build => {
+            let Some(cell_pos) = selected_cell.0 else { return };
+
+            if !buildable.is_module() {
+                commands.trigger(BuildEvent {
+                    buildable,
+                    cell_pos
+                });
             }
+        }
+        
+        InfoButton::Info => {
+            info!("Displaying info about {}", buildable);
         }
     }
 }
@@ -123,12 +117,6 @@ impl Plugin for BuildInfoPlugin {
     fn build(&self, app: &mut App) {
         app
 
-            .add_event::<BuildEvent>()
-
-            .add_plugins(UiGenericPlugin::<BuildInfoUi>::new())
-
-            .add_systems(PreUpdate, info_button_clicked_system
-                .distributive_run_if(on_event::<UiClickEvent>())
-                .distributive_run_if(input_just_pressed(MouseButton::Left)));
+            .add_event::<BuildEvent>();
     }
 }

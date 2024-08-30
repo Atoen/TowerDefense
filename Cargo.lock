@@ -760,18 +760,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bevy_lunex"
-version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2e83c1ce0e354a015068a5ca8a8341c112b8fc16740e7adff912b757eb72175"
-dependencies = [
- "bevy",
- "bevy_mod_picking",
- "colored",
- "lunex_engine",
-]
-
-[[package]]
 name = "bevy_macro_utils"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1591,16 +1579,6 @@ checksum = "3538270d33cc669650c4b093848450d380def10c331d38c768e34cac80576e6e"
 dependencies = [
  "termcolor",
  "unicode-width",
-]
-
-[[package]]
-name = "colored"
-version = "2.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cbf2150cce219b664a8a70df7a1f933836724b503f8a413af9365b4dcc4d90b8"
-dependencies = [
- "lazy_static",
- "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -2589,18 +2567,6 @@ name = "log"
 version = "0.4.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a7a70ba024b9dc04c27ea2f0c0548feb474ec5c54bba33a7f72f873a39d07b24"
-
-[[package]]
-name = "lunex_engine"
-version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5194eed564455f4b2de78e73d9d030312218383ac8a6104d43e82e948d992c5e"
-dependencies = [
- "bevy",
- "colored",
- "indexmap",
- "thiserror",
-]
 
 [[package]]
 name = "mach2"
@@ -3805,7 +3771,6 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy_framepace",
- "bevy_lunex",
  "bevy_mod_picking",
  "bevy_prng",
  "bevy_rand",
@@ -4353,15 +4318,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75283be5efb2831d37ea142365f009c02ec203cd29a3ebecbc093d52315b66d0"
 dependencies = [
  "windows-targets 0.42.2",
-]
-
-[[package]]
-name = "windows-sys"
-version = "0.48.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "677d2418bec65e3338edb076e806bc1ec15693c5d0104683f2efe857f61056a9"
-dependencies = [
- "windows-targets 0.48.5",
 ]
 
 [[package]]

@@ -14,6 +14,10 @@ pub struct DespawnAfterFrames {
     pub recursive: bool
 }
 
+#[allow(dead_code)]
+#[derive(Component)]
+pub struct Marker<const N: usize>;
+
 #[derive(Component)]
 pub struct DespawnAfter(pub Timer);
 

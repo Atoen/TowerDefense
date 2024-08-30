@@ -1,4 +1,4 @@
-use bevy::ecs::component::StorageType;
+use bevy::{ecs::component::StorageType, window::WindowResized};
 
 use crate::*;
 
@@ -11,78 +11,73 @@ impl Component for GameRoute {
     fn register_component_hooks(_hooks: &mut bevy::ecs::component::ComponentHooks) {
         _hooks.on_add(|mut world, entity, _| {
 
-            let material = world
-                .resource_mut::<Assets<ColorMaterial>>()
-                .add(Color::BLACK.with_alpha(0.7));
-        
             let nebula = world.resource::<UiTextures>().nebula.clone();
             let render_target = world.resource::<RenderTarget>().0.clone();
             
             let mut commands = world.commands();
-        
-            commands.entity(entity).insert(
-                SpatialBundle::default()
-            ).with_children(|route| {
-                route.spawn((
-                    UiTreeBundle::<MainUi>::from(UiTree::new2d("Game")),
-                    MovableByCamera,
-                    GameLayout,
-                )).with_children(|ui| {
-        
-                    let root = UiLink::<MainUi>::path("Root");
-                    ui.spawn((
-                        root.clone(),
-                        UiLayout::window_full().pack::<Base>()
-                    ));
-        
-                    ui.spawn((
-                        root.add("Background"),
-                        UiLayout::solid().size((1920.0, 1080.0)).scaling(Scaling::Fill).pack::<Base>(),
-                        Pickable::IGNORE,
-                        UiImage2dBundle {
-                            texture: nebula,
+
+            commands.trigger(RecalculateWindoSize);
+
+            commands.entity(entity).insert((
+                NodeBundle {
+                    style: Style {
+                        width: Val::Percent(100.0),
+                        height: Val::Percent(100.0),
+
+                        display: Display::Flex,
+                        flex_direction: FlexDirection::Column,
+                        ..default()
+                    },
+                    ..default()
+                },
+                GameLayout
+            )).with_children(|container| {
+                container.spawn((
+                    ImageBundle {
+                        image: nebula.into(),
+                        style: Style {
+                            position_type: PositionType::Absolute,
                             ..default()
-                        }
-                    ));
-    
-                    ui.spawn((
-                        root.add("Bottom Row/Background"),
-                        UiLayout::window().y(Rl(100.0)).size((Rl(100.0), 100.)).anchor(Anchor::BottomLeft).pack::<Base>(),
-                        UiMaterial2dBundle {
-                            material,
+                        },
+                        ..default()
+                    },
+                    FillContainer::default(),
+                    Pickable::IGNORE
+                ));
+
+                container.spawn((
+                    GameStatus,
+                    Pickable::IGNORE
+                ));
+
+                container.spawn((
+                    ImageBundle {
+                        image: render_target.into(),
+                        style: Style {
+                            position_type: PositionType::Absolute,
                             ..default()
-                        }
-                    ));
-        
-                    ui.spawn((
-                        root.add("Top Row"),
-                        UiLayout::window().size((Rl(100.0), 50.0)).pack::<Base>(),
-                        GameStatus,
-                        Pickable::IGNORE
-                    ));
-                        
-                    ui.spawn((
-                        root.add("Bottom Row"),
-                        UiLayout::window().y(Rl(100.0)).size((Rl(100.0), 100.0)).anchor(Anchor::BottomLeft).pack::<Base>(),
-                        WeaponSelector,
-                        BottomRow
-                    ));            
-    
-                    ui.spawn((
-                        root.add("Game Arena"),
-                        UiLayout::solid().size((1920.0, 1080.0)).scaling(Scaling::Fill).pack::<Base>(),
-                        UiImage2dBundle::from(render_target),
-                        GameArena,
-                        UiClickEmitter::SELF
-                    ));
-                });
+                        },
+                        z_index: ZIndex::Global(99),
+                        ..default()
+                    },
+                    FillContainer::default(),
+                    GameArena::default()
+                ));
+
+                container.spawn((WeaponSelector, BottomRow));
             });
         });
     }
 }
 
+#[derive(Event)]
+pub struct RecalculateWindoSize;
+
 #[derive(Component)]
-struct GameLayout;
+pub struct GameLayout;
+
+#[derive(Component, Default)]
+pub struct FillContainer(pub Vec2);
 
 #[derive(Event)]
 pub struct BottomRowContentChangedEvent(pub BottomRowContent);
@@ -104,14 +99,10 @@ fn update_bottom_row_trigger(
     game_layout: Query<Entity, With<GameLayout>>,
     current_content: Query<Entity, With<BottomRow>>
 ) {
-    let Ok(game_route) = game_layout.get_single() else { return };
+    let Ok(game_layout) = game_layout.get_single() else { return };
     let Ok(current) = current_content.get_single() else { return };
 
-    let content = commands.spawn((
-        UiLink::<MainUi>::path("Root/Bottom Row"),
-        UiLayout::window().y(Rl(100.0)).size((Rl(100.0), 100.)).anchor(Anchor::BottomLeft).pack::<Base>(),
-        BottomRow
-    )).id();
+    let content = commands.spawn(BottomRow).id();
 
     match trigger.event().0 {
         BottomRowContent::Selector => commands.entity(content).insert(WeaponSelector),
@@ -124,8 +115,54 @@ fn update_bottom_row_trigger(
         }
     };
 
-    commands.entity(game_route).add_child(content);
-    commands.entity(current).insert(DespawnAfterFrames::TWO);
+    commands.entity(current).despawn_recursive();
+    commands.entity(game_layout).add_child(content);
+}
+
+fn window_resized(
+    mut reader: EventReader<WindowResized>,
+    mut query: Query<(&mut Style, &mut FillContainer)>
+) {
+    for event in reader.read() {
+        for (mut style, mut container) in &mut query {
+            let width = 1920.0;
+            let height = 1080.0;
+    
+            let window_width = event.width;
+            let window_height = event.height;
+    
+            let scale = f32::max(window_width / width, window_height / height);
+    
+            let scaled_width = width * scale;
+            let scaled_height = height * scale;
+    
+            let left = (window_width - scaled_width) / 2.0;
+            let top = (window_height - scaled_height) / 2.0;
+    
+            style.width = Val::Px(scaled_width);
+            style.height = Val::Px(scaled_height);
+
+            container.0.x = scaled_width;
+            container.0.y = scaled_height;
+    
+            style.left = Val::Px(left);
+            style.top = Val::Px(top);
+        }
+    }
+}
+
+fn trigger_window_resize(
+    _trigger: Trigger<RecalculateWindoSize>,
+    windows: Query<(Entity, &Window), With<PrimaryWindow>>,
+    mut writer: EventWriter<WindowResized>
+) {
+    let Ok((entity, window)) = windows.get_single() else { return };
+
+    writer.send(WindowResized {
+        window: entity,
+        width: window.width(),
+        height: window.height()
+    });
 }
 
 pub struct GameLayoutPlugin;
@@ -141,11 +178,17 @@ impl Plugin for GameLayoutPlugin {
             })
 
             .observe(update_bottom_row_trigger)
+            .observe(trigger_window_resize)
+
+            .add_systems(Update, window_resized
+                .run_if(on_event::<WindowResized>()))
+
 
             // .add_systems(Update, update_bottom_row_trigger
             //     .run_if(on_event::<BottomRowContentChangedEvent>()))
 
             ;
-    }
+
+        }
 }
 

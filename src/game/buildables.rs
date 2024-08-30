@@ -1,7 +1,7 @@
 use std::fmt;
 
 use bevy::{prelude::Component, time::Timer};
-use strum_macros::{Display, EnumCount, EnumIter};
+use strum_macros::{EnumCount, EnumIter};
 
 use super::Damage;
 
@@ -51,10 +51,8 @@ impl fmt::Display for StandaloneBuildable {
     }
 }
 
-#[derive(Display, EnumIter, EnumCount, Clone, Copy, Debug, PartialEq, Eq, Hash, Component)]
+#[derive(EnumIter, EnumCount, Clone, Copy, Debug, PartialEq, Eq, Hash, Component)]
 pub enum Turret {
-
-    // Standard
     PulseBlaster,  
     IonCannon,     
     SwarmTurret,   
@@ -64,17 +62,46 @@ pub enum Turret {
     AcidSprayer, 
     FireThrower,
     
-    // Advanced
     SeekerLauncher,
     Sentinel,
     Recycler,
     RailGun,
 }
 
-#[derive(Display, EnumIter, EnumCount, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+impl fmt::Display for Turret {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = match self {
+            Turret::PulseBlaster => "Pulse Blaster",
+            Turret::IonCannon => "Ion Cannon",
+            Turret::SwarmTurret => "Swarm Turret",
+            Turret::PlasmaRay => "Plasma Ray",
+            Turret::CryoGenerator => "Cryo Generator",
+            Turret::Tesla => "Tesla",
+            Turret::AcidSprayer => "Acid Sprayer",
+            Turret::FireThrower => "Fire Thrower",
+            Turret::SeekerLauncher => "Seeker Launcher",
+            Turret::Sentinel => "Sentinel",
+            Turret::Recycler => "Recycler",
+            Turret::RailGun => "Rail Gun",
+        };
+        write!(f, "{}", name)
+    }
+}
+
+#[derive(EnumIter, EnumCount, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Consumable {
     ProximityMine,
-    RotorBlades
+    RotorBlades,
+}
+
+impl fmt::Display for Consumable {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = match self {
+            Consumable::ProximityMine => "Proximity Mine",
+            Consumable::RotorBlades => "Rotor Blades",
+        };
+        write!(f, "{}", name)
+    }
 }
 
 #[derive(Component)]

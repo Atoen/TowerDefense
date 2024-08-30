@@ -1,5 +1,4 @@
 use bevy::ecs::component::StorageType;
-use button::Button;
 
 use crate::*;
 
@@ -19,48 +18,49 @@ impl Component for ManageBuidable {
             let mut commands = world.commands();
 
             commands.entity(entity).insert(
-                UiTreeBundle::<ManageBuidableUi>::from(UiTree::new2d("Manage"))
-            ).with_children(|ui| {
-    
-                let row = UiLink::<ManageBuidableUi>::path("Row");
-                ui.spawn((
-                    row.clone(),
-                    UiLayout::window_full().pack::<Base>()
-                ));
-    
-                let width = Ab(60.0);
-                let height = Ab(30.0);
-                let spacing = Ab(20.0);
-    
-                let y = Rh(50.0) - height * 0.5;
+                NodeBundle {
+                    style: Style {
+                        position_type: PositionType::Absolute,
+                        width: Val::Percent(100.0),
+                        height: Val::Px(100.0),
+                        bottom: Val::Px(0.0),
 
-                let total_width = width * 3.0 + spacing * 2.0;
-                let initial_x = -total_width * 0.5 + Rw(50.0);
-    
-                for (index, button) in ManageButton::iter().enumerate() {
+                        display: Display::Flex,
+                        column_gap: Val::Px(30.0),
 
-                    if buildable.is_standalone() && button == ManageButton::Upgrade{ continue }
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    background_color: Color::BLACK.with_alpha(0.7).into(),
+                    z_index: ZIndex::Global(101),
+                    ..default()
+                }
+            ).with_children(|manage_buildable| {
+                for button in ManageButton::iter() {
 
-                    let x = initial_x + (width + spacing) * index as f32;
-                    ui.spawn((
-                        row.add(button.to_string()),
-                        UiLayout::window().pos((x, y)).size((width, height)).pack::<Base>(),
-                        Button {
-                            hover_enlarge: false,
-                            image: None,
-                            text: Some(button.to_string())
-                        },
-                        button
+                    if buildable.is_standalone() && button == ManageButton::Upgrade {
+                        manage_buildable.spawn(TextBundle::from_section(
+                            button.to_string(),
+                            TextStyle {
+                                color: Color::NONE,
+                                ..text_style()
+                            })
+                        );
+
+                        continue;
+                    }
+
+                    manage_buildable.spawn((
+                        TextBundle::from_section(button.to_string(), text_style()),
+                        button,
+                        On::<Pointer<Click>>::run(button_clicked)
                     ));
                 }
             });
         });
     }
 }
-
-#[derive(Component, Clone)]
-struct ManageBuidableUi;
-
 
 #[derive(Component, Display, EnumIter, PartialEq)]
 enum ManageButton {
@@ -69,61 +69,55 @@ enum ManageButton {
     Sell
 }
 
-fn manage_button_clicked_system(
-    mut events: EventReader<UiClickEvent>,
-    mut commands: Commands,
-    mut bottom_row: ResMut<BottomRowContent>,
-    query: Query<&ManageButton>,
-    mut grid: ResMut<GameGrid>,
-    turret_query: Query<&TurretLevel>
-) {
-    for event in events.read() {
-        if let Ok(button) = query.get(event.target) { 
-            debug!("Clicked: {}", button);
-
-            let BottomRowContent::Manage { entity, buildable } = *bottom_row else {
-                error!("Bottom row state mismatch! Current mode {:?}, expected: BottomRowContent::Manage", bottom_row);
-                return
-            };
-
-            match button {
-                ManageButton::Upgrade => { 
-                    let Ok(level) = turret_query.get(entity) else { continue };
-                    if level.0 >= 4 { continue }
-
-                    commands.entity(entity).insert(RaiseTurretLevel);
-                }
-
-                ManageButton::Sell => { 
-                    if let Some(cell) = grid.find_cell_mut(entity) {
-                        cell.remove_buildable(buildable);
-                    } else {
-                        warn!("Unable to find cell with specified entity!");
-                    }
-
-                    commands.entity(entity).despawn_recursive();
-
-                    *bottom_row = BottomRowContent::Selector;
-                    commands.trigger(BottomRowContentChangedEvent(*bottom_row));
-                }
-
-                ManageButton::Info => {
-                    info!("Displaying info about {}", buildable);
-                }
-            }
-        }
+fn text_style() -> TextStyle {
+    TextStyle {
+        font_size: 18.0,
+        color: Color::WHITE,
+        ..default()
     }
 }
 
-pub struct ManageBuidablePlugin;
-impl Plugin for ManageBuidablePlugin {
-    fn build(&self, app: &mut App) {
-        app
-            .add_plugins(UiGenericPlugin::<ManageBuidableUi>::new())
+fn button_clicked(
+    listener: Listener<Pointer<Click>>,
+    buttons: Query<&ManageButton>,
+    mut commands: Commands,
+    mut bottom_row: ResMut<BottomRowContent>,
+    mut grid: ResMut<GameGrid>,
+    turret_query: Query<&TurretLevel>
+) {
+    let target = listener.target;
+    let Ok(button) = buttons.get(target) else { return };
 
-            .add_systems(PostUpdate, manage_button_clicked_system
-                .distributive_run_if(on_event::<UiClickEvent>())
-                .distributive_run_if(input_just_pressed(MouseButton::Left)))
-            ;
+    debug!("Clicked: {}", button);
+
+    let BottomRowContent::Manage { entity, buildable } = *bottom_row else {
+        error!("Bottom row state mismatch! Current mode {:?}, expected: BottomRowContent::Manage", bottom_row);
+        return
+    };
+
+    match button {
+        ManageButton::Upgrade => { 
+            let Ok(level) = turret_query.get(entity) else { return };
+            if level.0 >= 4 { return }
+
+            commands.entity(entity).insert(RaiseTurretLevel);
+        }
+
+        ManageButton::Sell => { 
+            if let Some(cell) = grid.find_cell_mut(entity) {
+                cell.remove_buildable(buildable);
+            } else {
+                warn!("Unable to find cell with specified entity!");
+            }
+
+            commands.entity(entity).despawn_recursive();
+
+            *bottom_row = BottomRowContent::Selector;
+            commands.trigger(BottomRowContentChangedEvent(*bottom_row));
+        }
+
+        ManageButton::Info => {
+            info!("Displaying info about {}", buildable);
+        }
     }
 }

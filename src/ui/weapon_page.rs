@@ -1,5 +1,4 @@
 use bevy::ecs::component::StorageType;
-use button::Button;
 
 use crate::*;
 
@@ -18,8 +17,16 @@ impl Component for WeaponPage {
             let mut commands = world.commands();
 
             commands.entity(entity).insert(
-                UiTreeBundle::<WeaponPageUi>::from(UiTree::new2d("Weapon Page"))
-            ).with_children(|ui| {
+                NodeBundle {
+                    style: Style {
+                        display: Display::Flex,
+                        column_gap: Val::Px(30.0),
+                        ..default()
+                    },
+                    ..default()
+                }
+            ).with_children(|page_container| {
+
                 let elements_to_display: Vec<Buildable> = match page {
                     WeaponSelectorPage::Standard => vec![
                         Turret::PulseBlaster,
@@ -30,7 +37,7 @@ impl Component for WeaponPage {
                         Turret::Tesla,
                         Turret::AcidSprayer,
                         Turret::FireThrower
-                        ].into_iter().map(Buildable::Turret).collect(),
+                    ].into_iter().map(Buildable::Turret).collect(),
                         
                         WeaponSelectorPage::Advanced => vec![
                         Turret::SeekerLauncher,
@@ -45,70 +52,82 @@ impl Component for WeaponPage {
                         StandaloneBuildable::Consumable(Consumable::RotorBlades)
                     ].into_iter().map(Buildable::Standalone).collect()
                 };
-    
-                let width = Ab(90.0);
-                let height = Ab(30.0);
-            
-                let spacing = Ab(30.0);
-                let fragments = elements_to_display.len();
-                let total_width = width * fragments as f32 + spacing * (fragments - 1) as f32;
-                
-                let initial_x = -total_width * 0.5 + Rw(50.0);
-                let y = Rh(50.0) - height * 0.5;
-    
-                let list = UiLink::<WeaponPageUi>::path("List");
-                for (index, element) in elements_to_display.iter().enumerate() {
-    
-                    let x = initial_x + (width + spacing) * index as f32;
-    
-                    ui.spawn((
-                        list.add(element.to_string()),
-                        UiLayout::window().pos((x, y)).size((width, height)).pack::<Base>(),
-                        Button {
-                            hover_enlarge: true,
-                            image: None,
-                            text: Some(element.to_string())
+
+                for element in elements_to_display.iter() {
+
+                    page_container.spawn((
+                        NodeBundle {
+                            style: Style {
+                                display: Display::Flex,
+                                flex_direction: FlexDirection::Column,
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::Center,
+                                row_gap: Val::Px(10.0),
+                                ..default()
+                            },
+                            ..default()
                         },
-                        BuildableButton(*element)
-                    ));
+                        BuildableButton(*element),
+                        On::<Pointer<Click>>::run(buildable_clicked)
+                    )).with_children(|buildable| {
+                        buildable.spawn((
+                            TextBundle::from_section(element.to_string(), name_style())
+                                .with_text_justify(JustifyText::Center),
+                            Pickable::IGNORE
+                        ));
+
+                        if !element.is_module() {
+                            buildable.spawn((
+                                TextBundle::from_sections([
+                                    TextSection {
+                                        value: "$".into(),
+                                        style: price_style()
+                                    },
+                                    TextSection {
+                                        value: get_buildable_cost(*element).to_string(),
+                                        style: price_style()
+                                    }
+                                ]),
+                                Pickable::IGNORE
+                            ));
+                        }
+                    });
                 }
             });
         });
     }
 }
-#[derive(Component, Debug, Default, Clone, PartialEq)]
-struct WeaponPageUi;
+
+fn name_style() -> TextStyle {
+    TextStyle {
+        font_size: 18.0,
+        color: Color::WHITE,
+        ..default()
+    }
+}
+
+fn price_style() -> TextStyle {
+    TextStyle {
+        font_size: 16.0,
+        color: Color::WHITE,
+        ..default()
+    }
+}
 
 #[derive(Component)]
 struct BuildableButton(Buildable);
 
-fn buildable_clicked_system(
-    mut events: EventReader<UiClickEvent>,
+fn buildable_clicked(
+    listener: Listener<Pointer<Click>>,
+    buttons: Query<&BuildableButton>,
     mut commands: Commands,
-    query: Query<&BuildableButton>,
     mut bottom_row: ResMut<BottomRowContent>
 ) {
-    for event in events.read() {
-        if let Ok(buildable_button) = query.get(event.target) {
-            info!("Clicked: {}", buildable_button.0);
+    let target = listener.target;
+    let Ok(button) = buttons.get(target) else { return };
 
-            *bottom_row = BottomRowContent::Build(buildable_button.0);
-            commands.trigger(BottomRowContentChangedEvent(*bottom_row));
-        }
-    }
-}
+    info!("Clicked: {}", button.0);
 
-pub struct WeaponPagePlugin;
-impl Plugin for WeaponPagePlugin {
-    fn build(&self, app: &mut App) {
-        app
-        
-            .add_plugins(UiGenericPlugin::<WeaponPageUi>::new())
-
-            .add_systems(PostUpdate, buildable_clicked_system
-                .distributive_run_if(on_event::<UiClickEvent>())
-                .distributive_run_if(input_just_pressed(MouseButton::Left)))
-
-            ;
-    }
+    *bottom_row = BottomRowContent::Build(button.0);
+    commands.trigger(BottomRowContentChangedEvent(*bottom_row));
 }

@@ -145,8 +145,8 @@ impl GameGrid {
                 return self.calculate_path();
             }
 
-            info!("Can't place module there");
-            commands.trigger(InfoMessageAddedEvent("Can't place module there".into()));
+            info!("Can't place Module there");
+            commands.trigger(InfoMessageAddedEvent("Can't place Module there".into()));
 
             return PathState::NoChange
         }
