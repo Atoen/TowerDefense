@@ -19,10 +19,7 @@ use bevy_mod_picking::prelude::*;
 const GRID_CELL_SIZE: u32 = 50;
 const GRID_WIDTH: u32 = 40;
 const GRID_HEIGHT: u32 = 20;
-
-mod components;
-mod systems;
-mod turret_bundles;
+const MAX_TURRET_LEVEL: u8 = 4;
 
 mod ui;
 use ui::*;
@@ -35,9 +32,6 @@ use routes::*;
 
 mod utils;
 use utils::*;
-
-mod turrets;
-use turrets::*;
 
 mod game;
 use game::*;
@@ -56,7 +50,7 @@ pub enum AppState {
     InGame
 }
 
-#[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash, Display)]
+#[derive(States, Default, Debug, Copy, Clone, PartialEq, Eq, Hash, Display)]
 pub enum GameState {
     #[default]
     BuildingPhase,
@@ -165,7 +159,7 @@ fn setup(
     let win_size = WinSize { width: primary.width(), height: primary.height() };
     commands.insert_resource(win_size);
     
-    commands.insert_resource(Cash(10000));
+    commands.insert_resource(Cash(2000));
 
     commands.spawn((
         BloomSettings::NATURAL,

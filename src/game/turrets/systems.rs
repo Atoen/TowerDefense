@@ -12,7 +12,7 @@ use crate::*;
 pub fn upgrade_turret_system(
     mut commands: Commands,
     mut parent_query: Query<(Entity, &Children, &mut TurretLevel, &mut TextureAtlas, &Transform), With<RaiseTurretLevel>>,
-    mut child_query: Query<(&mut TurretLevel, &Turret), Without<RaiseTurretLevel>>,
+    mut child_query: Query<(&mut TurretLevel, &Turret, Option<&mut AttackDelay>), Without<RaiseTurretLevel>>,
     game_textures: Res<GameTextures>
 ) {
     for (entity, chlidren, mut level, mut atlas, transform) in &mut parent_query {
@@ -20,14 +20,20 @@ pub fn upgrade_turret_system(
         atlas.index += 1;
 
         let Some(child) = chlidren.first() else { continue };
-        let Ok((mut child_level, turret)) = child_query.get_mut(*child) else {
+        let Ok((mut child_level, turret, attack_delay)) = child_query.get_mut(*child) else {
             warn!("Missing turret child entity!");
             return;
         };
 
         child_level.0 += 1;
 
+        if let Some(mut attack_delay) = attack_delay {
+            let new_fire_rate = get_turret_fire_rate(*turret, level.0);
+            attack_delay.0.set_duration(Duration::from_secs_f32(new_fire_rate.recip()));
+        }
+
         commands.trigger(TurretUpgradedEvent {
+            entity,
             turret: *turret,
             level: level.0
         });
@@ -92,7 +98,7 @@ pub fn flag_idle_turrets(
     }
 }
 
-const ROTATION_EPSILON: f32 = 0.001;
+pub const ROTATION_EPSILON: f32 = 0.001;
 const DEFAULT_ROTATION_SPEED: f32 = std::f32::consts::PI;
 
 pub fn idle_rotation_system(
@@ -245,16 +251,19 @@ pub fn projectile_turret_attack_system(
     time: Res<Time>,
     game_textures: Res<GameTextures>,
     mut rng: ResMut<GlobalEntropy<WyRand>>,
-    mut turrets: Query<(&TargetingTurret, &GlobalTransform, Option<&mut AttackDelay>, Option<&ProjectileSpawnOffset>, Option<&AttackDispersion>), With<ProjectileTurret>>,
+    mut turrets: Query<(
+        &Turret, &TargetingTurret, &GlobalTransform, Option<&mut AttackDelay>, Option<&ProjectileSpawnOffset>, Option<&AttackDispersion>
+    ), With<ProjectileTurret>>,
 ) {
     for (
-        turret,
+        turret_type,
+        targeting_turret,
         turret_transform,
         attack_delay,
         spawn_offset,
         attack_dispersion
     ) in &mut turrets {
-        if turret.current_target.is_none() {
+        if targeting_turret.current_target.is_none() {
             continue
         }
 
@@ -267,9 +276,9 @@ pub fn projectile_turret_attack_system(
         let direction = match attack_dispersion {
             Some(dispersion) => {
                 let random_angle = map_u32_to_range(rng.next_u32(), -dispersion.0, dispersion.0);
-                turret.current_angle + random_angle
+                targeting_turret.current_angle + random_angle
             }
-            None => turret.current_angle
+            None => targeting_turret.current_angle
         };
 
         let rotation = Quat::from_rotation_z(direction);
@@ -283,26 +292,176 @@ pub fn projectile_turret_attack_system(
 
         let spawn_translation = turret_transform.translation() + offset;
 
-        commands.spawn((
-            Projectile {
-                radius: 1.0,
-                damage: Damage {
-                    kind: DamageKind::Instant(25.0),
-                    source: DamageSource::Turret(Turret::PulseBlaster), 
-                    damage_type: DamageType::Kinetic 
+        spawn_projectile(*turret_type, &mut commands, &game_textures, spawn_translation, rotation, targeting_turret.current_target);
+    }
+}
+
+fn spawn_projectile(
+    turret_type: Turret,
+    commands: &mut Commands,
+    textures: &GameTextures,
+    position: Vec3,
+    rotation: Quat,
+    turret_target: Option<Entity>
+) {
+
+    match turret_type {
+        Turret::PulseBlaster => {
+            commands.spawn((
+                Projectile {
+                    radius: 1.0,
+                    damage: Damage {
+                        kind: DamageKind::Instant(20.0),
+                        source: DamageSource::Turret(turret_type),
+                        damage_type: DamageType::Kinetic
+                    },
+                    pierce: Pierce::ONE,
+                    hit_targets: default()
                 },
-                pierce: Pierce::ONE,
-            },
-            SpriteBundle {
-                texture: game_textures.bullet.clone(),
-                transform: Transform {
-                    translation: spawn_translation,
-                    rotation,
+                SpriteBundle {
+                    texture: textures.bullet.clone(),
+                    transform: Transform {
+                        translation: position,
+                        rotation,
+                        scale: Vec3::splat(0.3)
+                    },
                     ..default()
                 },
-                ..default()
-            },
-            RenderLayers::layer(1)
-        ));
+                RenderLayers::layer(1)
+            ));
+        }
+
+        Turret::IonCannon => {
+            commands.spawn((
+                Projectile {
+                    radius: 2.0,
+                    damage: Damage {
+                        kind: DamageKind::Instant(20.0),
+                        source: DamageSource::Turret(turret_type),
+                        damage_type: DamageType::Kinetic
+                    },
+                    pierce: Pierce::ONE,
+                    hit_targets: default()
+                },
+                Explosive {
+                    radius: 50.0,
+                    fallof: Some(DamageFalloff::Linear { min_damage_fraction: 0.5 }),
+                    damage: Damage {
+                        damage_type: DamageType::Kinetic,
+                        kind: DamageKind::Instant(80.0),
+                        source: DamageSource::Turret(turret_type)
+                    },
+                    animation: AoEAnimation {
+                        timer: Timer::from_seconds(0.5, TimerMode::Once),
+                        despawn_on_end: true,
+                        radius_animation: Some(RadiusAnimation::FromBaseRadius { grow_speed: 0.5 }),
+                        color_animation: Some(ColorAnimation {
+                            start_color: Color::srgb(1.0, 0.9, 0.0),
+                            end_color: Color::srgb(0.5, 0.1, 0.0),  
+                            alpha_factor: None,
+                            animate_alpha: true
+                        })
+                    }
+                },
+                SpriteBundle {
+                    texture: textures.cannon_ball.clone(),
+                    transform: Transform {
+                        translation: position,
+                        rotation,
+                        scale: Vec3::splat(0.4)
+                    },
+                    ..default()
+                },
+                LinearVelocity(120.0),
+                RenderLayers::layer(1)
+            ));
+        }
+
+        Turret::PhotonScatter => {
+            commands.spawn((
+                Projectile {
+                    radius: 1.0,
+                    damage: Damage {
+                        kind: DamageKind::Instant(10.0),
+                        source: DamageSource::Turret(turret_type),
+                        damage_type: DamageType::Energy
+                    },
+                    pierce: Pierce::Finite(3),
+                    hit_targets: default()
+                },
+                SpriteBundle {
+                    texture: textures.mini_bullet.clone(),
+                    transform: Transform {
+                        translation: position,
+                        rotation,
+                        scale: Vec3::splat(0.5)
+                    },
+                    ..default()
+                },
+                RenderLayers::layer(1)
+            ));
+        }
+
+        Turret::AcidSprayer => {
+
+        }
+
+        Turret::FireThrower => {
+            
+        }
+
+        Turret::SeekerLauncher => {
+            commands.spawn((
+                Projectile {
+                    radius: 5.0,
+                    damage: Damage {
+                        kind: DamageKind::Instant(40.0),
+                        source: DamageSource::Turret(turret_type),
+                        damage_type: DamageType::Kinetic
+                    },
+                    pierce: Pierce::ONE,
+                    hit_targets: default()
+                },
+                Explosive {
+                    radius: 80.0,
+                    fallof: Some(DamageFalloff::Linear { min_damage_fraction: 0.5 }),
+                    damage: Damage {
+                        damage_type: DamageType::Kinetic,
+                        kind: DamageKind::Instant(80.0),
+                        source: DamageSource::Turret(turret_type)
+                    },
+                    animation: AoEAnimation {
+                        timer: Timer::from_seconds(0.5, TimerMode::Once),
+                        despawn_on_end: true,
+                        radius_animation: Some(RadiusAnimation::FromBaseRadius { grow_speed: 0.5 }),
+                        color_animation: Some(ColorAnimation {
+                            start_color: Color::srgb(1.0, 0.9, 0.0),
+                            end_color: Color::srgb(0.5, 0.1, 0.0),  
+                            alpha_factor: None,
+                            animate_alpha: true
+                        })
+                    }
+                },
+                SpriteBundle {
+                    texture: textures.rocket.clone(),
+                    transform: Transform {
+                        translation: position,
+                        rotation,
+                        scale: Vec3::splat(0.6)
+                    },
+                    ..default()
+                },
+                LinearVelocity(120.0),
+                Homing {
+                    homing_distance: 200.0,
+                    homing_angle: std::f32::consts::FRAC_PI_4,
+                    homing_speed: 0.5,
+                    current_target: turret_target
+                },
+                RenderLayers::layer(1)
+            ));
+        }
+
+        _ => { warn!("Non-projectile turrent can't spawn projectiles! Got {turret_type}"); }
     }
 }

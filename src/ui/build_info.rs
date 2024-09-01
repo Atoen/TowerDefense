@@ -14,7 +14,7 @@ impl Component for BuildInfo {
 
             let mut commands = world.commands();
 
-            commands.entity(entity).insert(
+            commands.entity(entity).insert((
                 NodeBundle {
                     style: Style {
                         position_type: PositionType::Absolute,
@@ -29,16 +29,17 @@ impl Component for BuildInfo {
                         align_items: AlignItems::Center,
                         ..default()
                     },
-                    background_color: Color::BLACK.with_alpha(0.7).into(),
+                    background_color: Color::BLACK.with_alpha(0.5).into(),
                     z_index: ZIndex::Global(101),
                     ..default()
-                }
-            ).with_children(|build_info| {
+                },
+            )).with_children(|build_info| {
                 if buildable.is_module() {
                     build_info.spawn((
                         TextBundle::from_section("Done", text_style()),
                         InfoButton::Cancel,
-                        On::<Pointer<Click>>::run(button_clicked)
+                        On::<Pointer<Click>>::run(button_clicked),
+                        InteractionColors::BUTTON_DEFAULT
                     ));
 
                     return;
@@ -48,7 +49,8 @@ impl Component for BuildInfo {
                     build_info.spawn((
                         TextBundle::from_section(button.to_string(), text_style()),
                         button,
-                        On::<Pointer<Click>>::run(button_clicked)
+                        On::<Pointer<Click>>::run(button_clicked),
+                        InteractionColors::BUTTON_DEFAULT
                     ));
                 }
             });
@@ -67,7 +69,7 @@ enum InfoButton {
 fn text_style() -> TextStyle {
     TextStyle {
         font_size: 18.0,
-        color: Color::WHITE,
+        color: Color::GRAY_500,
         ..default()
     }
 }

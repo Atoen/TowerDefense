@@ -37,7 +37,7 @@ struct SpawningAlien(Timer);
 
 impl Default for AlienSpawnTimer {
     fn default() -> Self {
-        Self(Timer::from_seconds(2.0, TimerMode::Repeating))
+        Self(Timer::from_seconds(0.4, TimerMode::Repeating))
     }
 }
 
@@ -76,8 +76,7 @@ fn alien_spawn_animation_system(
             ..default()
         },
         Animator::new(tween),
-        DamageResistant(0.1),
-        KineticDamageResistant(0.2),
+        DamageResistance::new(Some(0.2), Some(0.1), None, None),
         SpawningAlien(Timer::from_seconds(0.5, TimerMode::Once)),
         RenderLayers::layer(1)
     ));
@@ -106,13 +105,14 @@ fn after_alien_spawn_system(
                 speed: 50.0,
                 ..default()
             },
-            CoreDamage(20.0),
+            CoreDamage(1),
         )).id();
         
         let alien = commands.entity(alien_entity)
             .remove::<(Animator<Transform>, SpawningAlien)>()
             .insert((
                 Alien::new(100.0),
+                CashReward(2),
                 ZigZag {
                     speed: 20.0,
                     range: 10.0,
@@ -159,41 +159,23 @@ fn after_alien_spawn_system(
     }
 }
 
-
 fn take_damage(
     mut commands: Commands,
     time: Res<Time>,
-    mut aliens: Query<(&Parent, &mut Alien, Option<&DamageResistant>, Option<&KineticDamageResistant>, Option<&EnergyDamageResistant>, Option<&ChemicalDamageResistant>)>
+    mut aliens: Query<(&Parent, &CashReward, &mut Alien, Option<&DamageResistance>)>
 ) {
     for (
         parent,
+        cash_reward,
         mut alien,
-        damage_resistant,
-        kinetic_damage_resistant,
-        energy_damage_resistant,
-        chemical_damage_resistant
+        damage_resistance
     ) in &mut aliens {
-
-        let base_vulnerability = 1.0 - damage_resistant.map_or(0.0, |r| r.0);
-
-        let kinetic_vulnerability =
-            base_vulnerability * (1.0 - kinetic_damage_resistant.map_or(0.0, |kr| kr.0));
-
-        let energy_vulnerability =
-            base_vulnerability * (1.0 - energy_damage_resistant.map_or(0.0, |er| er.0));
-
-        let chemical_vulnerability =
-            base_vulnerability * (1.0 - chemical_damage_resistant.map_or(0.0, |cr| cr.0));
 
         let mut health = alien.health;
 
         for damage in alien.received_damages_mut() {
-            let multiplier = match damage.damage_type {
-                DamageType::Kinetic => kinetic_vulnerability,
-                DamageType::Energy => energy_vulnerability,
-                DamageType::Chemical => chemical_vulnerability,
-                DamageType::True => 1.0
-            };
+
+            let multiplier = damage_resistance.map_or(1.0, |dr| dr.calculate_vulnerability(damage.damage_type));
 
             match &mut damage.timing {
                 DamageToApplyTiming::Instant(dmg) => {
@@ -208,6 +190,8 @@ fn take_damage(
             }
 
             if health <= 0.0 {
+                commands.trigger(CashChangedEvent { change: cash_reward.0 });
+
                 commands.entity(parent.get()).despawn_recursive();
                 break;
             }

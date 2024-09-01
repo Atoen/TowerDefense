@@ -171,7 +171,8 @@ fn move_along_path(
             commands.entity(entity).despawn_recursive();
 
             if let Some(damage) = core_damage {
-                info!("Core received {} damage!", damage.0); 
+                info!("Core received {} damage!", damage.0);
+                commands.trigger(CoreHealthChangedEvent { change: -damage.0 }) 
             }
         }
     }

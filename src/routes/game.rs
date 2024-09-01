@@ -103,8 +103,11 @@ fn update_bottom_row_trigger(
     let Ok(current) = current_content.get_single() else { return };
 
     let content = commands.spawn(BottomRow).id();
+    let new_content = trigger.event().0;
 
-    match trigger.event().0 {
+    info!("Changing bottom row content to {new_content}");
+    
+    match new_content {
         BottomRowContent::Selector => commands.entity(content).insert(WeaponSelector),
         BottomRowContent::Build(buildable) => commands.entity(content).insert(BuildInfo(buildable)),
         BottomRowContent::Manage { entity, buildable } => {

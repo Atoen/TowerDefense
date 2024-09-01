@@ -1,8 +1,9 @@
 use bevy::ecs::component::StorageType;
+use ui::DISABLED_BUTTON_COLOR;
 
 use crate::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct ManageBuidable {
     pub buildable: Buildable,
     pub entity: Entity
@@ -12,12 +13,14 @@ impl Component for ManageBuidable {
     const STORAGE_TYPE: StorageType = StorageType::Table;
 
     fn register_component_hooks(_hooks: &mut bevy::ecs::component::ComponentHooks) {
-        _hooks.on_add(|mut world, entity, _| {
-            let Some(ManageBuidable { buildable, .. } ) = world.entity(entity).get::<ManageBuidable>().cloned() else { return };
+        _hooks.on_add(|mut world, ui_entity, _| {
+            let Some(ManageBuidable { buildable, entity: buildable_entity }) = world.entity(ui_entity).get::<ManageBuidable>().copied() else { return };
+
+            let level = world.entity(buildable_entity).get::<TurretLevel>().copied();
 
             let mut commands = world.commands();
 
-            commands.entity(entity).insert(
+            commands.entity(ui_entity).insert(
                 NodeBundle {
                     style: Style {
                         position_type: PositionType::Absolute,
@@ -32,18 +35,30 @@ impl Component for ManageBuidable {
                         align_items: AlignItems::Center,
                         ..default()
                     },
-                    background_color: Color::BLACK.with_alpha(0.7).into(),
+                    background_color: Color::BLACK.with_alpha(0.5).into(),
                     z_index: ZIndex::Global(101),
                     ..default()
                 }
             ).with_children(|manage_buildable| {
                 for button in ManageButton::iter() {
 
-                    if buildable.is_standalone() && button == ManageButton::Upgrade {
+                    let is_standalone = buildable.is_standalone();
+                    let is_max_level = level.is_some_and(|l| l.0 == MAX_TURRET_LEVEL);
+
+                    if button == ManageButton::Upgrade && (is_standalone || is_max_level) {
+
+                        let color = if is_standalone {
+                            Color::NONE
+                        } else if is_max_level {
+                            DISABLED_BUTTON_COLOR
+                        } else {
+                            return
+                        };
+
                         manage_buildable.spawn(TextBundle::from_section(
                             button.to_string(),
                             TextStyle {
-                                color: Color::NONE,
+                                color,
                                 ..text_style()
                             })
                         );
@@ -54,7 +69,8 @@ impl Component for ManageBuidable {
                     manage_buildable.spawn((
                         TextBundle::from_section(button.to_string(), text_style()),
                         button,
-                        On::<Pointer<Click>>::run(button_clicked)
+                        On::<Pointer<Click>>::run(button_clicked),
+                        InteractionColors::BUTTON_DEFAULT
                     ));
                 }
             });
@@ -72,8 +88,44 @@ enum ManageButton {
 fn text_style() -> TextStyle {
     TextStyle {
         font_size: 18.0,
-        color: Color::WHITE,
+        color: Color::GRAY_500,
         ..default()
+    }
+}
+
+fn turret_upgraded_trigger(
+    trigger: Trigger<TurretUpgradedEvent>,
+    bottom_row: Res<BottomRowContent>,
+    level: Query<&TurretLevel>,
+    mut buttons: Query<(Entity, &ManageButton, &mut Text)>,
+    mut commands: Commands
+) {
+    let turret_entity = trigger.event().entity;
+    let BottomRowContent::Manage { entity, .. } = *bottom_row else { return };
+
+    if turret_entity != entity {
+        warn!("Not matching!");
+        return
+    }
+
+    let Ok(level) = level.get(turret_entity) else { return };
+    if level.0 < MAX_TURRET_LEVEL {
+        return
+    }
+
+    let Some((button_entity, _, mut text)) = buttons.iter_mut()
+        .find(|query| matches!(query.1, ManageButton::Upgrade)) else {
+        warn!("Unable to find upgrade button!");
+        return
+    };
+
+    commands.entity(button_entity).remove::<(
+        On<Pointer<Click>>,
+        InteractionColors
+    )>();
+
+    for section in text.sections.iter_mut() {
+        section.style.color = DISABLED_BUTTON_COLOR;
     }
 }
 
@@ -119,5 +171,15 @@ fn button_clicked(
         ManageButton::Info => {
             info!("Displaying info about {}", buildable);
         }
+    }
+}
+
+pub struct ManageBuildablePlugin;
+
+impl Plugin for ManageBuildablePlugin {
+    fn build(&self, app: &mut App) {
+        app
+            .observe(turret_upgraded_trigger)
+            ;
     }
 }

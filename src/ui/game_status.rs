@@ -45,7 +45,37 @@ impl Component for GameStatus {
                 },
                 Pickable::IGNORE
             )).with_children(|status| {
+
+                // Wave start button
+                status.spawn((
+                    NodeBundle {
+                        style: Style {
+                            position_type: PositionType::Absolute,
+                            right: Val::Px(10.0),
+                            top: Val::Px(50.0),
+                            ..default()
+                        },
+                        ..default()
+                    },
+                    InteractionColors {
+                        default: Color::GRAY_300,
+                        hover: Some(Color::srgb(202./255., 1., 186./255.)), 
+                        pressed: Some(Color::GRAY_600)
+                    },
+                    On::<Pointer<Click>>::run(start_wave_clicked)
+
+                )).with_children(|float| {
+                    float.spawn((
+                        TextBundle::from_section("Start Wave", TextStyle {
+                            color: Color::GRAY_300,
+                            font_size: 30.0,
+                            ..default()
+                        }),
+                        Pickable::IGNORE
+                    ));
+                });
             
+                // Left aligned pause button
                 status.spawn(NodeBundle {
                     style: Style {
                         width: Val::Percent(50.0),
@@ -79,6 +109,7 @@ impl Component for GameStatus {
                     });
                 });
             
+                // Centered score display
                 status.spawn(NodeBundle {
                     style: Style {
                         width: Val::Px(0.0),
@@ -90,16 +121,17 @@ impl Component for GameStatus {
                     ..default()
                 }).with_children(|center| {
                     center.spawn(ImageBundle {
-                            image: star.into(),
-                            style: image_style(),
-                            ..default()
-                        });
+                        image: star.into(),
+                        style: image_style(),
+                        ..default()
+                    });
                     center.spawn((
                         TextBundle::from_section(score.to_string(), text_style()),
                         ScoreText
                     ));
                 });
             
+                // Right aligned status group
                 status.spawn(NodeBundle {
                     style: Style {
                         width: Val::Percent(50.0),
@@ -113,6 +145,7 @@ impl Component for GameStatus {
                     ..default()
                 }).with_children(|right_group| {
             
+                    // Cash image + text
                     right_group.spawn(NodeBundle {
                         style: Style {
                             flex_direction: FlexDirection::Row,
@@ -122,16 +155,17 @@ impl Component for GameStatus {
                         ..default()
                     }).with_children(|cash_group| {
                         cash_group.spawn(ImageBundle {
-                                image: dollar.into(),
-                                style: image_style(),
-                                ..default()
-                            });
+                            image: dollar.into(),
+                            style: image_style(),
+                            ..default()
+                        });
                         cash_group.spawn((
-                            TextBundle::from_section(cash.to_string(), text_style()),
+                            TextBundle::from_section(format!("{cash:<4}"), text_style()),
                             CashText
                         ));
                     });
             
+                    // Modules image + text
                     right_group.spawn(NodeBundle {
                         style: Style {
                             flex_direction: FlexDirection::Row,
@@ -141,16 +175,17 @@ impl Component for GameStatus {
                         ..default()
                     }).with_children(|modules_group| {
                         modules_group.spawn(ImageBundle {
-                                image: module.into(),
-                                style: image_style(),
-                                ..default()
-                            });
+                            image: module.into(),
+                            style: image_style(),
+                            ..default()
+                        });
                         modules_group.spawn((
-                            TextBundle::from_section(available_modules.to_string(), text_style()),
+                            TextBundle::from_section(format!("{available_modules:<2}"), text_style()),
                             AvailableModulesText
                         ));
                     });
-            
+
+                    // Core image + text
                     right_group.spawn(NodeBundle {
                         style: Style {
                             flex_direction: FlexDirection::Row,
@@ -160,16 +195,17 @@ impl Component for GameStatus {
                         ..default()
                     }).with_children(|health_group| {
                         health_group.spawn(ImageBundle {
-                                image: core.into(),
-                                style: image_style(),
-                                ..default()
-                            });
+                            image: core.into(),
+                            style: image_style(),
+                            ..default()
+                        });
                         health_group.spawn((
-                            TextBundle::from_section(core_health.to_string(), text_style()),
+                            TextBundle::from_section(format!("{core_health:<2}"), text_style()),
                             CoreHealthText
                         ));
                     });
-            
+                    
+                    // Wave info image + text
                     right_group.spawn(NodeBundle {
                         style: Style {
                             flex_direction: FlexDirection::Row,
@@ -179,14 +215,14 @@ impl Component for GameStatus {
                         ..default()
                     }).with_children(|wave_group| {
                         wave_group.spawn(ImageBundle {
-                                image: alien.into(),
-                                style: image_style(),
-                                ..default()
-                            });
+                            image: alien.into(),
+                            style: image_style(),
+                            ..default()
+                        });
                         wave_group.spawn((
                             TextBundle::from_sections([
                                 TextSection {
-                                    value: wave_info.current.to_string(),
+                                    value: format!("{:>2}", wave_info.current),
                                     style: text_style()
                                 },
                                 TextSection {
@@ -194,13 +230,13 @@ impl Component for GameStatus {
                                     style: text_style()
                                 },
                                 TextSection {
-                                    value: wave_info.total.to_string(),
+                                    value: format!("{:<2}", wave_info.total),
                                     style: text_style()
                                 }
                             ]),
                             WaveInfoText
                         ));
-                    });
+                    });                    
                 });
             });
         });
@@ -230,24 +266,18 @@ pub struct Cash(pub u32);
 #[derive(Resource, Default)]
 pub struct Score(pub u32);
 
-#[derive(Resource, Default)]
+#[derive(Resource)]
 pub struct AvailableModules(pub u32);
 
-#[derive(Resource, Default)]
+#[derive(Resource)]
 pub struct CoreHealth(pub u32);
 
-#[derive(Resource, Default, Clone, Copy)]
+#[derive(Resource, Clone, Copy)]
 pub struct WaveInfo {
     pub current: u32,
     pub total: u32
 }
 
-
-#[derive(Component)]
-enum StatusButton {
-    Pause,
-    StartRound
-}
 
 #[derive(Component)]
 struct ScoreText;
@@ -264,9 +294,31 @@ struct CoreHealthText;
 #[derive(Component)]
 struct WaveInfoText;
 
+
 #[derive(Event)]
 pub struct CashChangedEvent {
     pub change: i32
+}
+
+#[derive(Event)]
+pub struct ScoreChangedEvent {
+    pub change: i32
+}
+
+#[derive(Event)]
+pub struct AvailableModulesChangedEvent {
+    pub change: i32
+}
+
+#[derive(Event)]
+pub struct CoreHealthChangedEvent {
+    pub change: i32
+}
+
+#[derive(Event)]
+pub struct WaveChangedEvent {
+    pub current: i32,
+    pub total: i32
 }
 
 fn pause_button_clicked(
@@ -283,19 +335,58 @@ fn pause_button_clicked(
     next_pause_state.set(next_pause);
 }
 
-fn game_cash_updated_trigger(
+fn start_wave_clicked(
+    mut next_game_state: ResMut<NextState<GameState>>
+) {
+    info!("Starting round");
+    next_game_state.set(GameState::AttackWave);
+}
+
+fn score_updated_trigger(
+    trgger: Trigger<ScoreChangedEvent>,
+    mut query: Query<&mut Text, With<ScoreText>>,
+    mut score: ResMut<Score>
+) {
+    score.0 = score.0.saturating_add_signed(trgger.event().change);
+
+    for mut text in &mut query {
+        text.sections[0].value = score.0.to_string();
+    }
+}
+
+fn cash_updated_trigger(
     trgger: Trigger<CashChangedEvent>,
     mut query: Query<&mut Text, With<CashText>>,
-    mut game_cash: Option<ResMut<Cash>>
+    mut cash: ResMut<Cash>
 ) {
-    let Some(cash) = game_cash.as_mut() else {
-        return;
-    };
-
-    cash.0 = cash.0.wrapping_add_signed(trgger.event().change);
+    cash.0 = cash.0.saturating_add_signed(trgger.event().change);
 
     for mut text in &mut query {
         text.sections[0].value = cash.0.to_string();
+    }
+}
+
+fn available_modules_updated_trigger(
+    trgger: Trigger<AvailableModulesChangedEvent>,
+    mut query: Query<&mut Text, With<AvailableModulesText>>,
+    mut modules: ResMut<AvailableModules>
+) {
+    modules.0 = modules.0.saturating_add_signed(trgger.event().change);
+
+    for mut text in &mut query {
+        text.sections[0].value = modules.0.to_string();
+    }
+}
+
+fn core_health_updated_trigger(
+    trgger: Trigger<CoreHealthChangedEvent>,
+    mut query: Query<&mut Text, With<CoreHealthText>>,
+    mut health: ResMut<CoreHealth>
+) {
+    health.0 = health.0.saturating_add_signed(trgger.event().change);
+
+    for mut text in &mut query {
+        text.sections[0].value = health.0.to_string();
     }
 }
 
@@ -303,14 +394,21 @@ pub struct GameStatusPlugin;
 impl Plugin for GameStatusPlugin {
     fn build(&self, app: &mut App) {
         app
+            .add_event::<ScoreChangedEvent>()
             .add_event::<CashChangedEvent>()
+            .add_event::<AvailableModulesChangedEvent>()
+            .add_event::<CoreHealthChangedEvent>()
+            .add_event::<WaveChangedEvent>()
 
             .init_resource::<Score>()
-            .init_resource::<AvailableModules>()
-            .init_resource::<CoreHealth>()
-            .init_resource::<WaveInfo>()
+            .insert_resource(AvailableModules(20))
+            .insert_resource(CoreHealth(10))
+            .insert_resource(WaveInfo { current: 1, total: 5 })
 
-            .observe( game_cash_updated_trigger)
+            .observe(score_updated_trigger)
+            .observe(cash_updated_trigger)
+            .observe(available_modules_updated_trigger)
+            .observe(core_health_updated_trigger)
 
             ;
     }

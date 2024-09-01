@@ -111,13 +111,13 @@ fn automatic_page_navigation_trigger(
         *page = WeaponSelectorPage::Building;
         commands.trigger(PageChangedEvent(*page));
     }
-
 }
 
 fn build_module_trigger(
     trigger: Trigger<GameCellClickedEvent>,
     mut commands: Commands,
     mut grid: ResMut<GameGrid>,
+    available_modules: Res<AvailableModules>,
     game_textures: Res<GameTextures>,
     bottom_row: Res<BottomRowContent>
 ) {
@@ -126,7 +126,7 @@ fn build_module_trigger(
 
     let Some(cell_pos) = trigger.event().0 else { return };
 
-    let path_state = grid.try_place_module(&cell_pos, &mut commands, &game_textures);
+    let path_state = grid.try_place_module(&cell_pos,  &available_modules, &mut commands, &game_textures);
     if let PathState::Updated = path_state {
         commands.trigger(PathChangedEvent);
     }

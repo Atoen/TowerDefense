@@ -109,7 +109,7 @@ fn add_message_trigger(
                 }
             ),
             ..default()
-        }
+        }.with_text_justify(JustifyText::Center)
         
     )).id();
 
@@ -175,7 +175,7 @@ impl Plugin for InfoTextPlugin {
             .add_systems(Update, decay_message_system
                 .run_if(in_state(AppState::InGame)))
 
-            .observe(display_buildable_name_trigger)            
+            .observe(display_buildable_name_trigger)
             .observe(add_message_trigger)
 
             ;

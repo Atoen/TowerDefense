@@ -111,6 +111,7 @@ impl GameGrid {
     pub fn try_place_module(
         &mut self,
         cell_pos: &UVec2,
+        avaliable_modules: &AvailableModules,
         commands: &mut Commands,
         game_textures: &GameTextures
     ) -> PathState {
@@ -140,6 +141,7 @@ impl GameGrid {
                 commands.entity(entity).despawn();
     
                 info!("Removed Module at {}", cell_pos);
+                commands.trigger(AvailableModulesChangedEvent { change: 1 });
 
                 // Module could be blocking better path - not skipping the calulcation
                 return self.calculate_path();
@@ -151,8 +153,18 @@ impl GameGrid {
             return PathState::NoChange
         }
 
+        if avaliable_modules.0 == 0 {
+            info!("Can't place more modules");
+            commands.trigger(InfoMessageAddedEvent("Can't place more modules".into()));
+
+            return PathState::NoChange
+        }
+
         // New module is not on the track - no update needed
         if self.path.as_ref().is_some_and(|path| !path.contains_cell(cell_pos)) {
+
+            commands.trigger(AvailableModulesChangedEvent { change: -1 });
+
             let module = spawn_module(cell_pos, commands, game_textures);
             self.get_cell_mut(cell_pos).unwrap().set_standalone(StandaloneBuildable::Module, module);
 
@@ -168,6 +180,8 @@ impl GameGrid {
         if let Some(path) = path_result {
             self.path = Some(path);
     
+            commands.trigger(AvailableModulesChangedEvent { change: -1 });
+
             let module = spawn_module(cell_pos, commands, game_textures);
             self.get_cell_mut(cell_pos).unwrap().set_standalone(StandaloneBuildable::Module, module);
     

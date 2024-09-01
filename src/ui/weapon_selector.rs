@@ -31,7 +31,7 @@ impl Component for WeaponSelector {
                         align_items: AlignItems::Center,
                         ..default()
                     },
-                    background_color: Color::BLACK.with_alpha(0.7).into(),
+                    background_color: Color::BLACK.with_alpha(0.5).into(),
                     z_index: ZIndex::Global(101),
                     ..default()
                 }
@@ -39,11 +39,12 @@ impl Component for WeaponSelector {
 
                 selector.spawn((
                     ImageBundle {
-                        image: arrow_left.into(),
+                        image: Into::<UiImage>::into(arrow_left.clone()).with_color(Color::GRAY_500),
                         ..default()
                     },
                     PageNavigation::Previous,
-                    On::<Pointer<Click>>::run(page_navigation_clicked)
+                    On::<Pointer<Click>>::run(page_navigation_clicked),
+                    InteractionColors::BUTTON_DEFAULT
                 ));
 
                 selector.spawn((
@@ -64,11 +65,12 @@ impl Component for WeaponSelector {
 
                 selector.spawn((
                     ImageBundle {
-                        image: arrow_right.clone().into(),
+                        image: Into::<UiImage>::into(arrow_right.clone()).with_color(Color::GRAY_500),
                         ..default()
                     },
                     PageNavigation::Next,
-                    On::<Pointer<Click>>::run(page_navigation_clicked)
+                    On::<Pointer<Click>>::run(page_navigation_clicked),
+                    InteractionColors::BUTTON_DEFAULT
                 ));
             });
         });
@@ -156,7 +158,6 @@ fn page_changed_trigger(
     commands.entity(page_container).add_child(new_page);
 }
 
-
 pub struct WaponSelectorPlugin;
 impl Plugin for WaponSelectorPlugin {
     fn build(&self, app: &mut App) {
@@ -167,7 +168,6 @@ impl Plugin for WaponSelectorPlugin {
             .add_systems(Update, handle_scroll)
             
             .observe(page_changed_trigger)
-
             ;
 
             // .add_systems(Update, page_changed_trigger

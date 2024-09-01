@@ -1,3 +1,5 @@
+use bevy::{asset::Handle, prelude::Image};
+
 use super::{Buildable, GameTextures, Turret};
 
 pub fn get_turret_range(turret: Turret, level: u8) -> f32 {
@@ -5,7 +7,7 @@ pub fn get_turret_range(turret: Turret, level: u8) -> f32 {
     let base_range = match turret {
         Turret::PulseBlaster => 200.0,
         Turret::IonCannon => 250.0,
-        Turret::SwarmTurret => 150.0,
+        Turret::PhotonScatter => 150.0,
         Turret::PlasmaRay => 220.0,
         Turret::CryoGenerator => 100.0,
         Turret::Tesla => 100.0,
@@ -45,17 +47,7 @@ pub const fn get_rotor_blades_radius() -> f32 {
     25.0
 }
 
-pub fn get_turret_sprite(turret: Turret, textures: &GameTextures) -> bevy::prelude::Handle<bevy::prelude::Image> {
-    match turret {
-        Turret::PulseBlaster => textures.pulse_blaster.clone(),
-        Turret::PlasmaRay => textures.plasma_ray.clone(),
-        Turret::AcidSprayer => textures.acid_sprayer.clone(),
-        Turret::RailGun => textures.rail_gun.clone(),
-        _ => textures.pulse_blaster.clone()
-    }
-}
-
-pub fn get_buildable_cost(buildable: Buildable) -> i32 {
+pub fn get_buildable_cost(buildable: Buildable) -> u32 {
     match buildable {
         Buildable::MODULE => 0,
         Buildable::Standalone(super::StandaloneBuildable::Consumable(consumable)) => {
@@ -67,7 +59,7 @@ pub fn get_buildable_cost(buildable: Buildable) -> i32 {
         Buildable::Turret(turret) => match turret {
             Turret::PulseBlaster => 70,
             Turret::IonCannon => 85,
-            Turret::SwarmTurret => 80,
+            Turret::PhotonScatter => 80,
             Turret::PlasmaRay => 80,
             Turret::CryoGenerator => 100,
             Turret::Tesla => 90,
@@ -85,7 +77,7 @@ pub fn get_turret_fire_rate(turret: Turret, level: u8) -> f32 {
     let base_fire_rate = match turret {
         Turret::PulseBlaster => 5.0,
         Turret::IonCannon => 1.0,
-        Turret::SwarmTurret => 10.0,
+        Turret::PhotonScatter => 10.0,
         Turret::PlasmaRay => 100.0,
         Turret::CryoGenerator => 0.2,
         Turret::Tesla => 0.3,
@@ -110,7 +102,7 @@ pub fn get_turret_rotation_speed(turret: Turret) -> f32 {
     match turret {
         Turret::PulseBlaster => std::f32::consts::TAU,
         Turret::IonCannon => std::f32::consts::PI * 0.66,
-        Turret::SwarmTurret => std::f32::consts::PI,
+        Turret::PhotonScatter => std::f32::consts::PI,
         Turret::PlasmaRay => std::f32::consts::TAU,
         Turret::CryoGenerator => std::f32::consts::FRAC_PI_2,
         Turret::Tesla => std::f32::consts::FRAC_PI_2,
@@ -120,5 +112,22 @@ pub fn get_turret_rotation_speed(turret: Turret) -> f32 {
         Turret::Sentinel => std::f32::consts::PI * 1.5,
         Turret::Recycler => std::f32::consts::PI,
         Turret::RailGun => std::f32::consts::PI * 1.2,
+    }
+}
+
+pub fn get_turret_sprite(turret: Turret, game_textures: &GameTextures, ) -> Handle<Image> {
+    match turret {
+        Turret::PulseBlaster => game_textures.pulse_blaster.clone(),
+        Turret::IonCannon => game_textures.ion_cannon.clone(),
+        Turret::PhotonScatter => game_textures.swarm_turret.clone(),
+        Turret::PlasmaRay => game_textures.plasma_ray.clone(),
+        Turret::CryoGenerator => game_textures.cryo_generator.clone(),
+        Turret::Tesla => game_textures.tesla.clone(),
+        Turret::AcidSprayer => game_textures.acid_sprayer.clone(),
+        Turret::FireThrower => game_textures.fire_thrower.clone(),
+        Turret::SeekerLauncher => game_textures.seeker_launcher.clone(),
+        Turret::Sentinel => game_textures.sentinel.clone(),
+        Turret::Recycler => game_textures.recycler_base.clone(),
+        Turret::RailGun => game_textures.rail_gun.clone(),
     }
 }

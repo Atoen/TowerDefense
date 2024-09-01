@@ -55,7 +55,7 @@ impl fmt::Display for StandaloneBuildable {
 pub enum Turret {
     PulseBlaster,  
     IonCannon,     
-    SwarmTurret,   
+    PhotonScatter,   
     PlasmaRay,          
     CryoGenerator, 
     Tesla,         
@@ -73,7 +73,7 @@ impl fmt::Display for Turret {
         let name = match self {
             Turret::PulseBlaster => "Pulse Blaster",
             Turret::IonCannon => "Ion Cannon",
-            Turret::SwarmTurret => "Swarm Turret",
+            Turret::PhotonScatter => "Photon Scatter",
             Turret::PlasmaRay => "Plasma Ray",
             Turret::CryoGenerator => "Cryo Generator",
             Turret::Tesla => "Tesla",

@@ -17,7 +17,6 @@ struct HologramEvent {
     bottom_row: BottomRowContent
 }
 
-
 #[derive(Resource)]
 struct RangeHologramHandles {
     range_color: Handle<ColorMaterial>,
@@ -184,6 +183,7 @@ fn spawn_turret_hologram(
             texture: get_turret_sprite(turret, game_textures),
             transform: Transform {
                 translation: cell.world_pos().on(GameLayer::TURRET),
+                scale: Vec3::splat(0.5),
                 ..default()
             },
             sprite: Sprite {
@@ -282,7 +282,7 @@ fn turret_upgraded_trigger(
 ) {
     let Ok(mut transform) = holograms.get_single_mut() else { return };
 
-    let TurretUpgradedEvent { turret, level } = trigger.event();
+    let TurretUpgradedEvent { turret, level, .. } = trigger.event();
     let ragne = get_turret_range(*turret, *level);
 
     transform.scale = get_range_transform_scale(ragne);
@@ -301,8 +301,14 @@ impl Plugin for HologramPLugin {
             .observe(display_manage_hologram_trigger)
 
             .observe(|_trgger: Trigger<HologramEvent>, holograms: Query<Entity, With<BuildHologram>>, mut commands: Commands| {
+                let mut count = 0;
                 for entity in &holograms {
+                    count += 1;
                     commands.entity(entity).despawn_recursive();
+                }
+
+                if count > 0 {
+                    debug!("Despawned {count} holograms");
                 }
             })
 

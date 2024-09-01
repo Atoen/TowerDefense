@@ -1,3 +1,5 @@
+use core::f32;
+
 use game::GameLayerOrder;
 
 use crate::*;
@@ -42,7 +44,7 @@ pub(crate) fn build_clicked_trigger(
 
     info!("Placed {} at {} for {}$", buildable, cell_pos, price);
 
-    commands.trigger(CashChangedEvent { change: -price });
+    commands.trigger(CashChangedEvent { change: -(price as i32) });
 
     *bottom_row = BottomRowContent::Selector;
     commands.trigger(BottomRowContentChangedEvent(*bottom_row));
@@ -162,11 +164,29 @@ fn spawn_turret(
     commands: &mut Commands,
     game_textures: &Res<GameTextures>
 ) {
-    let entity = match turret {
+    let base_bundle = (
+        RotationSpeed(get_turret_rotation_speed(*turret)),
+        SpriteBundle {
+            texture: get_turret_sprite(*turret, game_textures),
+            transform: Transform {
+                translation: Vec3::ZERO.on(GameLayer::TURRET),
+                scale: Vec3::splat(0.5),
+                ..default()
+            },
+            ..default()
+        },
+        *turret,
+        CellEntity {
+            pos: cell.position
+        },
+        TurretLevel::default(),
+        RenderLayers::layer(1)
+    );
+
+    let parent = spawn_turret_base(commands, game_textures, Color::RED, cell);
+
+    match turret {
         Turret::PulseBlaster => {
-
-            let parent = spawn_turret_base(commands, game_textures, Color::RED, cell);
-
             commands.spawn((
                 AttackDispersion(std::f32::consts::PI / 32.0),
                 AttackDelay::from_fire_rate(get_turret_fire_rate(*turret, 0)),
@@ -176,30 +196,12 @@ fn spawn_turret(
                 },
                 ProjectileTurret,
                 ProjectileSpawnOffset::from_vec2(Vec2::new(0.0, GRID_CELL_SIZE as f32 / 2.0)),
-                RotationSpeed(get_turret_rotation_speed(*turret)),
                 IdleRotation::default(),
-                SpriteBundle {
-                    texture: game_textures.pulse_blaster.clone(),
-                    transform: Transform {
-                        translation: Vec3::ZERO.on(GameLayer::TURRET),
-                        ..default()
-                    },
-                    ..default()
-                },
-                *turret,
-                CellEntity {
-                    pos: cell.position
-                },
-                TurretLevel::default(),
-                RenderLayers::layer(1)
+                base_bundle
             )).set_parent(parent);
-
-            parent
         }
 
         Turret::IonCannon => {
-            let parent = spawn_turret_base(commands, game_textures, Color::ORANGE, cell);
-
             commands.spawn((
                 AttackDelay::from_fire_rate(get_turret_fire_rate(*turret, 0)),
                 TargetingTurret {
@@ -208,32 +210,76 @@ fn spawn_turret(
                 },
                 ProjectileTurret,
                 ProjectileSpawnOffset::from_vec2(Vec2::new(0.0, GRID_CELL_SIZE as f32 / 2.0)),
-                RotationSpeed(get_turret_rotation_speed(*turret)),
                 IdleRotation::default(),
-                SpriteBundle {
-                    texture: game_textures.ion_cannon.clone(),
-                    transform: Transform {
-                        translation: Vec3::ZERO.on(GameLayer::TURRET),
-                        ..default()
-                    },
-                    ..default()
-                },
-                *turret,
-                CellEntity {
-                    pos: cell.position
-                },
-                TurretLevel::default(),
-                RenderLayers::layer(1)
+                base_bundle
             )).set_parent(parent);
-
-            parent
         }
 
-        Turret::SwarmTurret => {
-            let parent = spawn_turret_base(commands, game_textures, Color::RED, cell);
-
+        Turret::PhotonScatter => {
             commands.spawn((
+                AttackDelay::from_fire_rate(get_turret_fire_rate(*turret, 0)),
                 AttackDispersion(std::f32::consts::PI / 12.0),
+                TargetingTurret {
+                    mode: TargetingMode::First,
+                    ..default()
+                },
+                ProjectileTurret,
+                ProjectileSpawnOffset::from_vec2(Vec2::new(0.0, GRID_CELL_SIZE as f32 / 2.0)),
+                IdleRotation::default(),
+                base_bundle
+            )).set_parent(parent);
+        }
+
+        Turret::PlasmaRay => {
+            commands.spawn((
+                TargetingTurret {
+                    mode: TargetingMode::First,
+                    ..default()
+                },
+                IdleRotation::default(),
+                base_bundle
+            )).set_parent(parent);
+        }
+
+        Turret::CryoGenerator => {
+            commands.spawn((
+                ConstantRotation { speed: f32::consts::FRAC_PI_2 },
+            )).insert(base_bundle).set_parent(parent);
+        }
+
+        Turret::Tesla => {
+            commands.spawn((
+                ConstantRotation { speed: f32::consts::FRAC_PI_2 },
+                base_bundle
+            )).set_parent(parent);
+        }
+
+        Turret::AcidSprayer => {
+            commands.spawn((
+                AttackDelay::from_fire_rate(get_turret_fire_rate(*turret, 0)),
+                TargetingTurret {
+                    mode: TargetingMode::First,
+                    ..default()
+                },
+                IdleRotation::default(),
+                base_bundle
+            )).set_parent(parent);
+        }
+
+        Turret::FireThrower => {
+            commands.spawn((
+                AttackDelay::from_fire_rate(get_turret_fire_rate(*turret, 0)),
+                TargetingTurret {
+                    mode: TargetingMode::First,
+                    ..default()
+                },
+                IdleRotation::default(),
+                base_bundle
+            )).set_parent(parent);
+        }
+
+        Turret::SeekerLauncher => {
+            commands.spawn((
                 AttackDelay::from_fire_rate(get_turret_fire_rate(*turret, 0)),
                 TargetingTurret {
                     mode: TargetingMode::First,
@@ -241,35 +287,47 @@ fn spawn_turret(
                 },
                 ProjectileTurret,
                 ProjectileSpawnOffset::from_vec2(Vec2::new(0.0, GRID_CELL_SIZE as f32 / 2.0)),
-                RotationSpeed(get_turret_rotation_speed(*turret)),
                 IdleRotation::default(),
-                SpriteBundle {
-                    texture: game_textures.swarm_turret.clone(),
-                    transform: Transform {
-                        translation: Vec3::ZERO.on(GameLayer::TURRET),
-                        ..default()
-                    },
-                    ..default()
-                },
-                *turret,
-                CellEntity {
-                    pos: cell.position
-                },
-                TurretLevel::default(),
-                RenderLayers::layer(1)
+                base_bundle
             )).set_parent(parent);
-
-            parent
         }
 
-        _ => Entity::PLACEHOLDER
+        Turret::Sentinel => {
+            commands.spawn((
+                TargetingTurret {
+                    mode: TargetingMode::First,
+                    ..default()
+                },
+                IdleRotation::default(),
+                base_bundle
+            )).set_parent(parent);
+        }
+
+        Turret::Recycler => {
+            commands.spawn((
+                ConstantRotation { speed: f32::consts::FRAC_PI_2 },
+                base_bundle
+            )).set_parent(parent);
+        }
+
+        Turret::RailGun => {
+            commands.spawn((
+                AttackDelay::from_fire_rate(get_turret_fire_rate(*turret, 0)),
+                TargetingTurret {
+                    mode: TargetingMode::First,
+                    ..default()
+                },
+                IdleRotation::default(),
+                base_bundle
+            )).set_parent(parent);
+        }
     };
 
-    cell.set_turret(*turret, entity);
+    cell.set_turret(*turret, parent);
 }
 
 fn spawn_turret_base(commands: &mut Commands, game_textures: &Res<GameTextures>, color: Color, cell: &mut Cell) -> Entity {
-    let parent = commands.spawn((
+    commands.spawn((
         SpriteBundle {
             texture: game_textures.turret_ring_texture.clone(),
             transform: Transform {
@@ -292,6 +350,5 @@ fn spawn_turret_base(commands: &mut Commands, game_textures: &Res<GameTextures>,
             pos: cell.position
         },
         RenderLayers::layer(1)
-    )).id();
-    parent
+    )).id()
 }

@@ -22,8 +22,8 @@ pub struct Explosion {
 
 #[derive(Clone, Copy)]
 pub enum DamageFalloff {
-    Linear { min_damage_percent: f32 },
-    Exponential { min_damage_percent: f32 },
+    Linear { min_damage_fraction: f32 },
+    Exponential { min_damage_fraction: f32 },
 }
 
 #[derive(Component, Clone)]
@@ -105,11 +105,11 @@ fn explosion_damage_system(
             }
 
             let falloff_factor = match explosion.falloff {
-                Some(DamageFalloff::Linear { min_damage_percent }) => {
+                Some(DamageFalloff::Linear { min_damage_fraction: min_damage_percent }) => {
                     let factor = 1.0 - (distance / explosion.radius);
                     factor.max(min_damage_percent)
                 }
-                Some(DamageFalloff::Exponential { min_damage_percent }) => {
+                Some(DamageFalloff::Exponential { min_damage_fraction: min_damage_percent }) => {
                     let factor = (1.0 - (distance / explosion.radius)).powi(2);
                     factor.max(min_damage_percent)
                 }

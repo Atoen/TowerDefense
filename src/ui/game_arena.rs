@@ -71,11 +71,6 @@ fn game_arena_clicked_system(
     mut game_camera: Query<(&mut Transform, &OrthographicProjection), With<GameCamera>>,
     game_arena: Query<&GameArena>
 ) {
-    // if let Ok(Some(PickingInteraction::Hovered | PickingInteraction::Pressed)) = game_arena.get_single() {
-    // } else if !input_data.is_dragging {
-    //     return;
-    // }
-
     let Ok(arena) = game_arena.get_single() else { return };
     if !arena.is_mouse_over && !input_data.is_dragging {
         return;

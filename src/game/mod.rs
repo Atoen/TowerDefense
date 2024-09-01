@@ -184,7 +184,7 @@ fn consumable_damage_system(
                         commands.spawn(
                             ExplosionToSpawn {
                                 damage: Some(mine.damage),
-                                falloff: Some(DamageFalloff::Linear { min_damage_percent: 0.5 }),
+                                falloff: Some(DamageFalloff::Linear { min_damage_fraction: 0.5 }),
                                 radius: mine.explosion_radius,
                                 position: consumable_transform.translation,
                                 animation: AoEAnimation {

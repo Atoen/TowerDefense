@@ -1,6 +1,8 @@
+use bevy::utils::HashSet;
+
 use crate::*;
 
-#[derive(Component, Default)]
+#[derive(Component, Default, Clone, Copy)]
 pub struct TurretLevel(pub u8);
 
 #[derive(Component)]
@@ -74,7 +76,8 @@ impl Default for IdleRotation{
 pub struct Projectile {
     pub radius: f32,
     pub damage: Damage,
-    pub pierce: Pierce
+    pub pierce: Pierce,
+    pub hit_targets: HashSet<Entity>
 }
 pub enum Pierce {
     Infinite,
@@ -104,7 +107,7 @@ pub enum DamageKind {
     OverTime { dps: f32, duration: f32 }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum DamageType {
     Kinetic,
     Energy,
@@ -118,10 +121,15 @@ pub struct LinearVelocity(pub f32);
 #[derive(Component)]
 pub struct Explosive {
     pub radius: f32,
-    pub damage: f32
+    pub fallof: Option<DamageFalloff>,
+    pub damage: Damage,
+    pub animation: AoEAnimation
 }
-impl Explosive {
-    pub fn new(radius: f32, damage: f32) -> Self {
-        Self { radius, damage }
-    }
+
+#[derive(Component)]
+pub struct Homing {
+    pub current_target: Option<Entity>,
+    pub homing_distance: f32,
+    pub homing_angle: f32,
+    pub homing_speed: f32
 }
