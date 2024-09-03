@@ -39,7 +39,7 @@ impl Component for WeaponSelector {
 
                 selector.spawn((
                     ImageBundle {
-                        image: Into::<UiImage>::into(arrow_left.clone()).with_color(Color::GRAY_500),
+                        image: Into::<UiImage>::into(arrow_left).with_color(Color::GRAY_500),
                         ..default()
                     },
                     PageNavigation::Previous,
@@ -65,7 +65,7 @@ impl Component for WeaponSelector {
 
                 selector.spawn((
                     ImageBundle {
-                        image: Into::<UiImage>::into(arrow_right.clone()).with_color(Color::GRAY_500),
+                        image: Into::<UiImage>::into(arrow_right).with_color(Color::GRAY_500),
                         ..default()
                     },
                     PageNavigation::Next,
@@ -114,11 +114,12 @@ fn handle_scroll(
     mut scroll: EventReader<MouseWheel>,
     mut commands: Commands,
     mut page: ResMut<WeaponSelectorPage>,
-    windows: Query<&Window, With<PrimaryWindow>>
+    windows: Query<&Window, With<PrimaryWindow>>,
+    ui_scale: Res<UiScale>
 ) {
     let Ok(window) = windows.get_single() else { return };
     let Some(cursor_pos) = window.cursor_position() else { return };
-    if window.size().y - cursor_pos.y > 100.0 {
+    if window.size().y - cursor_pos.y > 100.0 * ui_scale.0 {
         return
     }
 

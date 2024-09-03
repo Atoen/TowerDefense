@@ -14,7 +14,8 @@ pub struct PathFollower {
     pub current_segment: usize,
     pub t: f32,
     pub total_progress: f32,
-    pub direction: PathDirection
+    pub direction: PathDirection,
+    pub run_paused: bool
 }
 
 #[derive(Default, PartialEq, Eq, Clone, Copy)]
@@ -123,6 +124,7 @@ fn spawn_path_followers(
         Animator::new(tween),
         PathFollower {
             speed: 50.0,
+            run_paused: true,
             ..default()
         },
         RenderLayers::layer(1)
@@ -134,9 +136,11 @@ fn move_along_path(
     time: Res<Time>,
     mut query: Query<(Entity, &mut Transform, &mut PathFollower, Option<&CoreDamage>)>,
     grid: Res<GameGrid>,
+    pause_state: Res<State<PauseState>>
 ) {
     let Some(ref path) = grid.path else { return };
     let path_length = path.points.len() as f32 - 1.0;
+    let is_paused = *pause_state == PauseState::Paused;
 
     for (
         entity,
@@ -144,6 +148,10 @@ fn move_along_path(
         mut follower,
         core_damage
     ) in query.iter_mut() {
+
+        if is_paused && !follower.run_paused {
+            continue;
+        }
 
         if follower.current_segment < path.points.len() - 1 {
             let start = cell_to_world_pos(&path.points[follower.current_segment]);

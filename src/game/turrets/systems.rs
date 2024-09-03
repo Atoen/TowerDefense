@@ -159,7 +159,10 @@ fn get_target_weight(alien: &Alien, targeting_mode: &TargetingMode) -> f32 {
 
 pub fn turret_targeting_system(
     time: Res<Time>,
-    mut turrets: Query<(&mut TargetingTurret, &mut Transform, &GlobalTransform, &TurretLevel, &Turret, Option<&RotationSpeed>), Without<Alien>>,
+    mut turrets: Query<
+        (&mut TargetingTurret, &mut Transform, &GlobalTransform, &TurretLevel, &Turret, Option<&RotationSpeed>, Option<&mut PreciseAttack>),
+        Without<Alien>
+    >,
     aliens: Query<(Entity, &GlobalTransform, &Alien)>
 ) {
     for (
@@ -168,7 +171,8 @@ pub fn turret_targeting_system(
         turret_global_transform,
         turret_level,
         turret_type,
-        rotation_speed
+        rotation_speed,
+        precise_attack
     ) in &mut turrets {
 
         let turret_radius_2 = get_turret_range_squared(*turret_type, turret_level.0);
@@ -227,12 +231,17 @@ pub fn turret_targeting_system(
 
         let target_angle = displacement.y.atan2(displacement.x) - f32::consts::FRAC_PI_2;
         let angle_diff = shortest_angle_diff(turret.current_angle, target_angle);
+        let angle_diff_abs = angle_diff.abs();
 
-        if angle_diff.abs() >= f32::consts::PI {
+        if let Some(mut precise_attack) = precise_attack {
+            precise_attack.is_correct_angle = angle_diff_abs <= precise_attack.max_angle_diff;
+        }
+
+        if angle_diff_abs >= f32::consts::PI {
             warn!("Angle diff: {}", angle_diff);
         }
 
-        if angle_diff.abs() < ROTATION_EPSILON {
+        if angle_diff_abs < ROTATION_EPSILON {
             continue
         }
 
@@ -453,7 +462,7 @@ fn spawn_projectile(
                 },
                 LinearVelocity(120.0),
                 Homing {
-                    homing_distance: 200.0,
+                    homing_distance: 300.0,
                     homing_angle: std::f32::consts::FRAC_PI_4,
                     homing_speed: 0.5,
                     current_target: turret_target
@@ -463,5 +472,101 @@ fn spawn_projectile(
         }
 
         _ => { warn!("Non-projectile turrent can't spawn projectiles! Got {turret_type}"); }
+    }
+}
+
+pub fn beam_turret_attack_system(
+    mut commands: Commands,
+    game_textures: Res<GameTextures>,
+    mut turrets: Query<(Entity, &Turret, &TargetingTurret, &GlobalTransform, Option<&ProjectileSpawnOffset>, &PreciseAttack, &mut BeamTurret)>,
+    mut aliens: Query<(Entity, &GlobalTransform, &mut Alien)>,
+    mut beams: Query<(&mut Transform, &mut Beam)>
+) {
+    for (
+        turret_entity,
+        turret_type,
+        targeting_turret,
+        turret_transform,
+        spawn_offset,
+        precise_attack,
+        mut beam_turret,
+    ) in &mut turrets {
+
+        let turret_pos = turret_transform.translation();
+
+        let Some((alien_entity, alient_translation, mut alien)) = targeting_turret.current_target
+            .and_then(|target| aliens.get_mut(target).ok()) else {
+            if let Some(beam) = beam_turret.beam.take() {
+                commands.entity(beam).despawn();
+            }
+            continue
+        };
+
+        let alien_pos = alient_translation.translation();
+
+        let direction = (alien_pos - turret_pos).normalize();
+        let target_angle = direction.y.atan2(direction.x) - std::f32::consts::FRAC_PI_2;
+
+        if !precise_attack.is_correct_angle {
+            if let Some(beam) = beam_turret.beam.take() {
+                commands.entity(beam).despawn();
+            }
+            
+            continue
+        }
+
+        let rotation = Quat::from_rotation_z(targeting_turret.current_angle);
+        let start_offset = match spawn_offset {
+            Some(offset) => {
+                rotation * offset.0
+            }
+            None => Vec3::ZERO,
+        };
+
+        let beam_start = turret_pos + start_offset;
+
+        let distance = beam_start.truncate().distance(alien_pos.truncate());
+        let beam_rotation = Quat::from_rotation_z(target_angle);
+
+        let midpoint = beam_start + direction * distance * 0.5;
+
+        if let Some(beam) = beam_turret.beam {
+            if let Ok((mut beam_transform, mut beam)) = beams.get_mut(beam) {
+                beam_transform.translation = midpoint;
+                beam_transform.rotation = beam_rotation;
+                beam_transform.scale.y = distance / 20.0;
+
+                beam.target = Some(alien_entity);
+                if let Some(ref dmg) = beam.damage {
+                    alien.add_damage(dmg, turret_entity);
+                }
+            }
+        } else {
+            let damage = Damage {
+                damage_type: DamageType::Energy,
+                kind: DamageKind::OverTime { dps: 80.0, duration: 0.1 },
+                source: DamageSource::Turret(*turret_type)
+            };
+
+            let beam = commands.spawn((
+                    SpriteBundle {
+                    texture: game_textures.laser_beam.clone(),
+                    transform: Transform {
+                        translation: midpoint,
+                        rotation,
+                        scale: Vec3::new(0.5, distance / 20.0, 1.0)
+                    },
+                    ..default()
+                },
+                Beam {
+                    damage: Some(damage),
+                    target: Some(alien_entity)
+                },
+                RenderLayers::layer(1)
+            )).id();
+
+            beam_turret.beam = Some(beam);
+            alien.add_damage(&damage, turret_entity);
+        }
     }
 }

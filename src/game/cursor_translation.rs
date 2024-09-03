@@ -9,12 +9,13 @@ fn game_click_trigger(
     game_camera: Query<(&GlobalTransform, &OrthographicProjection), With<GameCamera>>,
     windows: Query<&Window, With<PrimaryWindow>>,
     game_arena: Query<&FillContainer, With<GameArena>>,
+    ui_scale: Res<UiScale>
 ) {
     let window = windows.single();
 
     let Ok((camera_global_transform, projection)) = game_camera.get_single() else { return };
 
-    let world_cursor_pos = cursor_to_world_pos(trigger.event().0, window.size());
+    let world_cursor_pos = cursor_to_world_pos(trigger.event().0, window.size()) / ui_scale.0;
 
     fn calculate_scale_factor(fill_container: &FillContainer) -> f32 {
         // First pass render target height

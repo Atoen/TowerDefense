@@ -53,6 +53,7 @@ impl Component for GameStatus {
                             position_type: PositionType::Absolute,
                             right: Val::Px(10.0),
                             top: Val::Px(50.0),
+                            padding: UiRect::axes(Val::Px(10.0), Val::Px(5.0)),
                             ..default()
                         },
                         ..default()
@@ -71,42 +72,32 @@ impl Component for GameStatus {
                             font_size: 30.0,
                             ..default()
                         }),
-                        Pickable::IGNORE
+                        Pickable::IGNORE,
+                        StartWaveText
                     ));
                 });
             
                 // Left aligned pause button
-                status.spawn(NodeBundle {
-                    style: Style {
-                        width: Val::Percent(50.0),
-                        justify_content: JustifyContent::FlexStart,
-                        align_items: AlignItems::Center,
-                        ..default()
-                    },
-                    ..default()
-                }).with_children(|left| {
-
-                    left.spawn((
-                        ButtonBundle {
-                            style: Style {
-                                width: Val::Px(30.0),
-                                height: Val::Px(30.0),
-                                ..default()
-                            },
+                status.spawn((
+                    NodeBundle {
+                        style: Style {
+                            width: Val::Percent(50.0),
+                            justify_content: JustifyContent::FlexStart,
+                            align_items: AlignItems::Center,
                             ..default()
                         },
-                        On::<Pointer<Click>>::run(pause_button_clicked)
-                    )).with_children(|pause_button| {
-                        
-                        pause_button.spawn((
-                            ImageBundle {
-                                image: pause_image.into(),
-                                style: image_style(),
-                                ..default()
-                            },
-                            Pickable::IGNORE
-                        ));
-                    });
+                        ..default()
+                    },
+                )).with_children(|left| {
+                    left.spawn((
+                        ImageBundle {
+                            image: Into::<UiImage>::into(pause_image).with_color(Color::GRAY_500),
+                            style: image_style(),
+                            ..default()
+                        },
+                        On::<Pointer<Click>>::run(pause_button_clicked),
+                        InteractionColors::BUTTON_DEFAULT
+                    ));
                 });
             
                 // Centered score display
@@ -294,6 +285,8 @@ struct CoreHealthText;
 #[derive(Component)]
 struct WaveInfoText;
 
+#[derive(Component)]
+struct StartWaveText;
 
 #[derive(Event)]
 pub struct CashChangedEvent {
@@ -322,12 +315,12 @@ pub struct WaveChangedEvent {
 }
 
 fn pause_button_clicked(
-    pause_state: Res<State<PausedState>>,
-    mut next_pause_state: ResMut<NextState<PausedState>>,
+    pause_state: Res<State<PauseState>>,
+    mut next_pause_state: ResMut<NextState<PauseState>>,
 ) {
     let next_pause = match pause_state.get() {
-        PausedState::Running => PausedState::Paused,
-        PausedState::Paused => PausedState::Running
+        PauseState::Running => PauseState::Paused,
+        PauseState::Paused => PauseState::Running
     };
 
     info!("Current pause state: {}", next_pause);
@@ -336,9 +329,22 @@ fn pause_button_clicked(
 }
 
 fn start_wave_clicked(
-    mut next_game_state: ResMut<NextState<GameState>>
+    game_state: Res<State<GameState>>,
+    mut next_game_state: ResMut<NextState<GameState>>,
+    mut text: Query<&mut Text, With<StartWaveText>>
 ) {
+    if *game_state.get() == GameState::AttackWave {
+        return
+    }
+
+    if let Ok(mut text) = text.get_single_mut() {
+        text.sections[0].value = "Wave Incoming".into();
+    } else {
+        warn!("Missing StartWaveText!");
+    }
+    
     info!("Starting round");
+    
     next_game_state.set(GameState::AttackWave);
 }
 

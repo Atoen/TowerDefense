@@ -32,6 +32,9 @@ use crate::ColorPalette;
 
 const DISABLED_BUTTON_COLOR: Color = Color::GRAY_700;
 
+#[derive(Event)]
+pub struct BuildableRemovedEvent(pub Entity);
+
 #[derive(Component, Default)]
 pub struct InteractionColors {
     default: Color,

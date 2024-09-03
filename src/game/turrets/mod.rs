@@ -71,7 +71,7 @@ fn projectile_system(
 
                 projectile.hit_targets.insert(alien_entity);
 
-                alien.add_damage(&projectile.damage);
+                alien.add_damage(&projectile.damage, projectile_entity);
 
                 if let Some(explosive) = explosive {
                     commands.entity(projectile_entity).despawn();
@@ -188,18 +188,23 @@ pub struct TurretsPlugin;
 impl Plugin for TurretsPlugin {
     fn build(&self, app: &mut App) {
         app
-            .add_systems(Update, (
+            .add_systems(FixedUpdate, (
                 projectile_system,
                 turret_targeting_system,
                 projectile_turret_attack_system,
+                beam_turret_attack_system,
                 homing_projectile_system
-            ).run_if(in_state(GameState::AttackWave)))
+            ).run_if(
+                in_state(GameState::AttackWave).and_then(in_state(PauseState::Running))
+            ))
 
             .add_systems(Update, (
                 flag_idle_turrets,
                 idle_rotation_system,
                 upgrade_turret_system
-            ).run_if(in_state(AppState::InGame)))
+            ).run_if(
+                in_state(AppState::InGame).and_then(in_state(PauseState::Running))
+            ))
 
             ;
     }

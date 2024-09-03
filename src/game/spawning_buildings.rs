@@ -237,6 +237,9 @@ fn spawn_turret(
                     ..default()
                 },
                 IdleRotation::default(),
+                ProjectileSpawnOffset::from_vec2(Vec2::new(0.0, GRID_CELL_SIZE as f32 / 2.0)),
+                BeamTurret::default(),
+                PreciseAttack { max_angle_diff: 0.1, is_correct_angle: false },
                 base_bundle
             )).set_parent(parent);
         }

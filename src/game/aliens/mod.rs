@@ -33,7 +33,7 @@ struct HealthBarBackground;
 struct AlienSpawnTimer(Timer);
 
 #[derive(Component)]
-struct SpawningAlien(Timer);
+struct AlienSpawnAnimation(Timer);
 
 impl Default for AlienSpawnTimer {
     fn default() -> Self {
@@ -41,7 +41,18 @@ impl Default for AlienSpawnTimer {
     }
 }
 
-fn alien_spawn_animation_system(
+fn spawn_animation(
+    time: Res<Time>,
+    mut query: Query<(&mut AlienSpawnAnimation, &mut Transform)>
+) {
+    for (mut animation, mut transform) in &mut query {
+        animation.0.tick(time.delta());
+
+        transform.scale = Vec3::splat(animation.0.fraction());
+    }
+}
+
+fn alien_spawn_system(
     mut commands: Commands,
     time: Res<Time>,
     mut spawn_timer: ResMut<AlienSpawnTimer>,
@@ -51,15 +62,6 @@ fn alien_spawn_animation_system(
     if !spawn_timer.0.tick(time.delta()).finished() {
         return
     }
-
-    let tween = Tween::new(
-        EaseFunction::QuadraticIn,
-        Duration::from_millis(500),
-        TransformScaleLens {
-            start: Vec3::ZERO,
-            end: Vec3::ONE
-        }
-    );
 
     commands.spawn((
         SpriteBundle {
@@ -75,21 +77,20 @@ fn alien_spawn_animation_system(
             },
             ..default()
         },
-        Animator::new(tween),
         DamageResistance::new(Some(0.2), Some(0.1), None, None),
-        SpawningAlien(Timer::from_seconds(0.5, TimerMode::Once)),
+        AlienSpawnAnimation(Timer::from_seconds(0.5, TimerMode::Once)),
         RenderLayers::layer(1)
     ));
 }
 
 fn after_alien_spawn_system(
-    time: Res<Time>,
     mut commands: Commands,
-    mut query: Query<(Entity, &mut SpawningAlien, &mut Transform)>,
+    mut query: Query<(Entity, &AlienSpawnAnimation, &mut Transform)>,
     grid: Res<GameGrid>
 ) {
-    for (alien_entity, mut spawning, mut transform) in &mut query {
-        if !spawning.0.tick(time.delta()).finished() { continue }
+    for (alien_entity, animation, mut transform) in &mut query {
+
+        if !animation.0.finished() { continue }
 
         transform.translation = Vec3::ZERO;
 
@@ -109,7 +110,7 @@ fn after_alien_spawn_system(
         )).id();
         
         let alien = commands.entity(alien_entity)
-            .remove::<(Animator<Transform>, SpawningAlien)>()
+            .remove::<AlienSpawnAnimation>()
             .insert((
                 Alien::new(100.0),
                 CashReward(2),
@@ -327,14 +328,17 @@ impl Plugin for AliensPlugin {
             .init_resource::<AlienSpawnTimer>()
 
             .add_systems(Update, (
-                alien_spawn_animation_system,
+                alien_spawn_system,
+                spawn_animation,
                 after_alien_spawn_system,
                 take_damage,
                 update_healthbar,
                 update_path_progress,
                 zigzag_movement_system
             )
-                .run_if(in_state(GameState::AttackWave)))
+                .run_if(
+                    in_state(GameState::AttackWave).and_then(in_state(PauseState::Running))
+                ))
 
             ;
     }

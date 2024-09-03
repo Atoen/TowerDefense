@@ -124,15 +124,16 @@ fn update_bottom_row_trigger(
 
 fn window_resized(
     mut reader: EventReader<WindowResized>,
-    mut query: Query<(&mut Style, &mut FillContainer)>
+    mut query: Query<(&mut Style, &mut FillContainer)>,
+    ui_scale: Res<UiScale>
 ) {
     for event in reader.read() {
         for (mut style, mut container) in &mut query {
             let width = 1920.0;
             let height = 1080.0;
     
-            let window_width = event.width;
-            let window_height = event.height;
+            let window_width = event.width / ui_scale.0;
+            let window_height = event.height / ui_scale.0;
     
             let scale = f32::max(window_width / width, window_height / height);
     

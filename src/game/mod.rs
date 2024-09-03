@@ -201,12 +201,14 @@ fn consumable_damage_system(
                             }
                         );
 
+                        commands.trigger(BuildableRemovedEvent(consumable_entity));
+
                         continue 'consumables;
                     }
                 }
                 (Some(ref mut blades), None) => {
                     if blades.radius * blades.radius >= distance_2 {
-                        alien.add_damage(&blades.damage);
+                        alien.add_damage(&blades.damage, consumable_entity);
                         blades.durability -= time.delta_seconds();
 
                         if blades.durability <= 0.0 {
@@ -232,6 +234,8 @@ fn consumable_damage_system(
                                     }
                                 }
                             );
+                            
+                            commands.trigger(BuildableRemovedEvent(consumable_entity));
                             
                             continue 'consumables;
                         }
@@ -262,7 +266,7 @@ impl Plugin for GamePlugin {
                 proximity_mine_animation_system,
             ).run_if(in_state(AppState::InGame)))
 
-            .add_systems(Update, consumable_damage_system
+            .add_systems(FixedUpdate, consumable_damage_system
                 .run_if(in_state(GameState::AttackWave)))
 
             .add_systems(OnEnter(AppState::InGame), setup_game)

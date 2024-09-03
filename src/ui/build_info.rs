@@ -35,23 +35,46 @@ impl Component for BuildInfo {
                 },
             )).with_children(|build_info| {
                 if buildable.is_module() {
+
                     build_info.spawn((
-                        TextBundle::from_section("Done", text_style()),
+                        NodeBundle {
+                            style: Style {
+                                padding: UiRect::axes(Val::Px(10.0), Val::Px(15.0)),
+                                ..default()
+                            },
+                            ..default()
+                        },
                         InfoButton::Cancel,
                         On::<Pointer<Click>>::run(button_clicked),
                         InteractionColors::BUTTON_DEFAULT
-                    ));
+                    )).with_children(|button_container| {
+                        button_container.spawn((
+                            TextBundle::from_section("Done", text_style()),
+                            Pickable::IGNORE
+                        ));
+                    });
 
                     return;
                 }
 
                 for button in InfoButton::iter() {
                     build_info.spawn((
-                        TextBundle::from_section(button.to_string(), text_style()),
+                        NodeBundle {
+                            style: Style {
+                                padding: UiRect::axes(Val::Px(10.0), Val::Px(15.0)),
+                                ..default()
+                            },
+                            ..default()
+                        },
                         button,
                         On::<Pointer<Click>>::run(button_clicked),
                         InteractionColors::BUTTON_DEFAULT
-                    ));
+                    )).with_children(|button_container| {
+                        button_container.spawn((
+                            TextBundle::from_section(button.to_string(), text_style()),
+                            Pickable::IGNORE
+                        ));
+                    });
                 }
             });
         });
@@ -59,7 +82,7 @@ impl Component for BuildInfo {
 }
 
 
-#[derive(Component, EnumIter, Display)]
+#[derive(Component, EnumIter, Display, Clone, Copy)]
 enum InfoButton {
     Info,
     Build,

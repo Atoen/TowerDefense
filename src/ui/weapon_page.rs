@@ -22,7 +22,7 @@ impl Component for WeaponPage {
                 NodeBundle {
                     style: Style {
                         display: Display::Flex,
-                        column_gap: Val::Px(30.0),
+                        column_gap: Val::Px(10.0),
                         ..default()
                     },
                     ..default()
@@ -67,6 +67,7 @@ impl Component for WeaponPage {
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
                                 row_gap: Val::Px(10.0),
+                                padding: UiRect::axes(Val::Px(10.0), Val::Px(15.0)),
                                 ..default()
                             },
                             ..default()

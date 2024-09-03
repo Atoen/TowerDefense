@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = { version = "0.14.0" }
+bevy = { version = "0.14.1" }
 bevy_framepace = "0.17.1"
 bevy_tweening = "0.11"
 

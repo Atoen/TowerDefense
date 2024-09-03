@@ -8,7 +8,7 @@ use crate::*;
 pub struct Alien {
     // damages_to_apply: HashMap<DamageSource, DamageToApply>,
 
-    dot_to_apply: HashMap<DamageSource, DamageToApply>,
+    dot_to_apply: HashMap<Entity, DamageToApply>,
     damage_to_apply: Vec<DamageToApply>,
 
     pub health: f32,
@@ -45,7 +45,7 @@ impl Alien {
         });
     }
 
-    pub fn add_damage(&mut self, damage: &Damage) {
+    pub fn add_damage(&mut self, damage: &Damage, source: Entity) {
         match damage.kind {
             DamageKind::Instant(instant) => {
 
@@ -80,7 +80,7 @@ impl Alien {
                         },
                         ..
                     }
-                ) = self.dot_to_apply.get_mut(&damage.source) {
+                ) = self.dot_to_apply.get_mut(&source) {
                     
                     let new_duration = Duration::from_secs_f32(duration).max(source_timer.duration());
                     
@@ -92,7 +92,7 @@ impl Alien {
 
                     // No existing DOT from this source, so add a new entry
                     self.dot_to_apply.insert(
-                        damage.source,
+                        source,
                         DamageToApply {
                             timing: DamageToApplyTiming::OverTime {
                                 timer: Timer::from_seconds(duration, TimerMode::Once),

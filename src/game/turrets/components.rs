@@ -1,4 +1,4 @@
-use bevy::utils::HashSet;
+use bevy::{ecs::component::StorageType, utils::HashSet};
 
 use crate::*;
 
@@ -11,6 +11,25 @@ pub struct RaiseTurretLevel;
 #[derive(Component)]
 pub struct ProjectileTurret;
 
+#[derive(Default)]
+pub struct BeamTurret {
+    pub beam: Option<Entity>
+}
+
+impl Component for BeamTurret {
+    const STORAGE_TYPE: StorageType = StorageType::Table;
+
+    fn register_component_hooks(_hooks: &mut bevy::ecs::component::ComponentHooks) {
+        _hooks.on_remove(|mut wolrd, entity, _| {
+            if let Some(beam) = wolrd.entity(entity)
+                .get::<BeamTurret>()
+                .and_then(|source| source.beam) {
+                wolrd.commands().entity(beam).despawn();
+            }
+        });
+    }   
+}
+
 #[derive(Component)]
 pub struct AttackDelay(pub Timer);
 
@@ -20,19 +39,29 @@ impl AttackDelay {
     }
 }
 
-#[derive(Component, Default)]
+#[derive(Component, Default, Clone, Copy)]
 pub struct TargetingTurret {
     pub current_angle: f32,
     pub current_target: Option<Entity>,
     pub mode: TargetingMode
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy, Display)]
 pub enum TargetingMode {
     #[default]
     First,
     Last,
     Strongest
+}
+
+impl TargetingMode {
+    pub fn next(self) -> Self {
+        match self {
+            TargetingMode::First => Self::Last,
+            TargetingMode::Last => Self::Strongest,
+            TargetingMode::Strongest => Self::First,
+        }
+    }
 }
 
 #[derive(Component, Default)]
@@ -50,7 +79,10 @@ impl ProjectileSpawnOffset {
 pub struct RotationSpeed(pub f32);
 
 #[derive(Component)]
-pub struct PreciseAttack;
+pub struct PreciseAttack {
+    pub max_angle_diff: f32,
+    pub is_correct_angle: bool
+}
 
 #[derive(Component)]
 pub struct IdleRotation {
@@ -71,6 +103,11 @@ impl Default for IdleRotation{
     }
 }
 
+#[derive(Component)]
+pub struct Beam {
+    pub target: Option<Entity>,
+    pub damage: Option<Damage>
+}
 
 #[derive(Component)]
 pub struct Projectile {

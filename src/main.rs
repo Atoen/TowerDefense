@@ -37,7 +37,7 @@ mod game;
 use game::*;
 
 #[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash, Display)]
-pub enum PausedState {
+pub enum PauseState {
     #[default]
     Running,
     Paused
@@ -110,7 +110,7 @@ fn main() {
 
         .add_systems(OnEnter(AppState::InGame), spawn_game_camera)
         
-        .init_state::<PausedState>()
+        .init_state::<PauseState>()
         .init_state::<AppState>()
         .init_state::<GameState>()
 

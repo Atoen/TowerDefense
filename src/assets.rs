@@ -45,6 +45,7 @@ impl AssetPath {
     const MINI_BULLET: &'static str = "turrets/mini_bullet.png";
     const CANNON_BALL: &'static str = "turrets/cannon_ball.png";
     const ROCKET: &'static str = "turrets/rocket.png";
+    const LASER_BEAM: &'static str = "turrets/laser_beam.png";
 
     const CORE: &'static str = "images/core.png";
     const PORTAL: &'static str = "images/portal.png";
@@ -123,6 +124,7 @@ pub struct GameTextures {
     pub mini_bullet: Handle<Image>,
     pub cannon_ball: Handle<Image>,
     pub rocket: Handle<Image>,
+    pub laser_beam: Handle<Image>,
 
     pub path_dot: Handle<Image>,
     pub path_alien: Handle<Image>,
@@ -174,6 +176,7 @@ impl GameTextures {
             mini_bullet: asset_server.load(AssetPath::MINI_BULLET),
             cannon_ball: asset_server.load(AssetPath::CANNON_BALL),
             rocket: asset_server.load(AssetPath::ROCKET),
+            laser_beam: asset_server.load(AssetPath::LASER_BEAM),
 
             path_dot: asset_server.load(AssetPath::PATH_DOT),
             path_alien: asset_server.load(AssetPath::PATH_ALIEN),

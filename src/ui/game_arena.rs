@@ -39,8 +39,9 @@ fn interaction_system(
     windows: Query<&Window, With<PrimaryWindow>>,
     mut game_arena: Query<(Option<&PickingInteraction>, &mut GameArena)>
 ) {
-
-    let Ok((interaction, mut game_arena)) = game_arena.get_single_mut() else { return };
+    let Ok((interaction, mut game_arena)) = game_arena.get_single_mut() else {
+        return
+    };
 
     let bottom_row_height = BOTTOM_ROW_BASE_HEIGHT * ui_scale.0;
 
@@ -52,7 +53,7 @@ fn interaction_system(
 
     let bottom_row_start = window.height() - bottom_row_height;
     game_arena.is_mouse_over = if cursor_pos.y < bottom_row_start {
-        if cursor_pos.y < 50.0 {
+        if cursor_pos.y < 200.0 {
             matches!(interaction, Some(PickingInteraction::Pressed | PickingInteraction::Hovered))
         } else {
             true
@@ -65,7 +66,8 @@ fn interaction_system(
 fn game_arena_clicked_system(
     windows: Query<&Window, With<PrimaryWindow>>,
     mut commands: Commands,
-    mut button_events: EventReader<MouseButtonInput>,
+    // mut button_events: EventReader<MouseButtonInput>,
+    button_input: Res<ButtonInput<MouseButton>>,
     mut motion_events: EventReader<MouseMotion>,
     mut input_data: ResMut<InputData>,
     mut game_camera: Query<(&mut Transform, &OrthographicProjection), With<GameCamera>>,
@@ -85,27 +87,23 @@ fn game_arena_clicked_system(
 
     let Ok((mut transform, projection)) = game_camera.get_single_mut() else { return };
 
-    for button_event in button_events.read() {
-        
-        if button_event.button == MouseButton::Left {
-            if input_data.first_input {
-                input_data.first_input = false;
-                return;
-            }
-
-            input_data.input_held = button_event.state.is_pressed();
-
-            if input_data.input_held {
-                input_data.is_dragging = false;
-                input_data.drag_distance = Vec2::ZERO;
-            } else if input_data.is_dragging {
-                debug!("Drag ended");
-            } else {
-                debug!("Mouse click");
-
-                commands.trigger(GameArenaClickedEvent(cursor_pos));
-            }
+    if button_input.just_pressed(MouseButton::Left) {
+        if input_data.first_input {
+            input_data.first_input = false;
+            return;
         }
+
+        input_data.input_held = true;
+        input_data.is_dragging = false;
+        input_data.drag_distance = Vec2::ZERO;
+    } else if button_input.just_released(MouseButton::Left) {
+        if input_data.is_dragging {
+            debug!("Drag ended");
+        } else {
+            debug!("Mouse click");
+            commands.trigger(GameArenaClickedEvent(cursor_pos));
+        }
+        input_data.input_held = false;
     }
 
     if input_data.input_held {

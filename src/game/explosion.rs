@@ -122,7 +122,7 @@ fn explosion_damage_system(
                 DamageKind::OverTime { dps, duration } => scaled_damage.kind = DamageKind::OverTime { dps: dps * falloff_factor, duration },
             }
 
-            alien.add_damage(&scaled_damage);
+            alien.add_damage(&scaled_damage, explosion_entity);
         }
 
         commands.entity(explosion_entity).despawn();

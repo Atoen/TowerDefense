@@ -124,6 +124,3 @@ pub struct RotorBlades {
     pub damage: Damage,
     pub durability: f32
 }
-
-#[derive(Component)]
-pub struct TurretComponent(pub Turret);
